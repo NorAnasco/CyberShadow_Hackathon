@@ -57,8 +57,11 @@ export interface ScrapedArticle {
   snippet: string;
   fullText: string;
   processed: boolean;
+  contentHash?: string;
+  pdfUrl?: string | null;
   analysis?: {
     isThreatNews: boolean;
+    hasSignatures?: boolean;
     detectedMaliciousIndicators: Array<{
       type: "domain" | "ip" | "email" | "phone" | "text_pattern";
       valeur: string;
@@ -67,6 +70,7 @@ export interface ScrapedArticle {
     }>;
     category: string;
     togoRelevance: string;
+    briefing?: string;
   };
 }
 
@@ -88,3 +92,24 @@ export interface MobileSignal {
   status: "pending" | "approved";
   agentName?: string;
 }
+
+export interface PhoneComplaint {
+  id: string;
+  agentId: string;
+  agentName: string;
+  phoneNumber: string;
+  category: string;
+  description: string;
+  status: "pending" | "confirmed_scam" | "dismissed";
+  createdAt: string;
+}
+
+export interface ScamPhoneNumber {
+  id: string;
+  phoneNumber: string;
+  reason: string;
+  reportedCount: number;
+  addedAt: string;
+  status: "active" | "archived";
+}
+

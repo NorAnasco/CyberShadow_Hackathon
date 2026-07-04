@@ -10,7 +10,7 @@ from scrapers import scrape_cert_tg, scrape_ancy_tg, extract_signatures_from_tex
 from correlation import run_forensic_correlation
 
 app = FastAPI(
-    title="SOC PHISHING TG - Serveur Central",
+    title="KEFYL SOC - Serveur Central",
     description="Interface de l'API de commandement et de synchronisation des agents mobiles de cybersécurité au Togo.",
     version="1.0.0"
 )
@@ -66,7 +66,7 @@ DEMO_REPORTS = [
 def read_root():
     return {
         "status": "ONLINE",
-        "system": "SOC PHISHING TG Central Gateway",
+        "system": "KEFYL SOC Central Gateway",
         "region_scope": "Togo (Lomé, Maritime, Plateaux, Centrale, Kara, Savanes)",
         "endpoints_doc": "/docs"
     }

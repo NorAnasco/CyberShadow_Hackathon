@@ -141,6 +141,23 @@ Le serveur reçoit cette alerte suspecte, la stocke dans son cache de veille, et
 
 ---
 
+## 🔒 NOUVEAUTÉS FONCTIONNELLES & VISUELLES (VERSION DE SÉCURITÉ V2.5)
+
+### 📞 1. Base Nationale des Numéros Dangereux & Escrocs
+Pour parer aux appels frauduleux et tentatives d'extorsions vocales Flooz/TMoney en recrudescence, la plateforme d'administration s'est dotée d'une **Base des Numéros Dangereux** accessible d'un geste sous l'onglet **Signatures**.
+*   **Enrôlement & CRUD complet** : Les analystes peuvent enregistrer, éditer, rechercher et révoquer manuellement les numéros suspects (avec nombre de rapports et motifs de blocage).
+*   **Diffusion Instantanée** : Ces numéros sont immédiatement transmis aux agents mobiles Kéfyl Shield lors de leur synchronisation de sécurité pour couper les communications frauduleuses dès leur émission.
+
+### 🎨 2. Raffinement Visuel Anti-Surcharge (Style SOC Militaire)
+Dans la salle de contrôle de l'onglet **Investigation**, nous avons éliminé la pollution visuelle des couleurs agressives, des clignotements constants (`animate-pulse`) et des boutons sautants (`animate-bounce`) :
+*   Les couleurs et boutons d'alertes s'intègrent désormais dans un camaïeu de gris ardoise, de métal poli et de nuances de bordeaux profonds.
+*   L'analyse de l'ingénierie sociale reste hautement visible, mais sans causer de fatigue visuelle ou cognitive lors des gardes prolongées de l'équipe cyber nationale.
+
+### 🔄 3. Alignement de Production Réelle "Zéro-Bruit"
+Pour faciliter les tests d'intégration du jury dans un environnement de production réel propre, la base centrale démarre par défaut à un état **complètement vierge (0 donnée)**. Le système est immédiatement prêt à accueillir les enrôlements d'agents mobiles, les remontées de télémétries et les synchronisations réelles de sécurité. Un bouton **"Charger les démos"** reste accessible pour simuler des scénarios d'attaques massives.
+
+---
+
 ## 5. RECONCEPTION ARCHITECTURALE PROPOSÉE (PYTHON SERVER + JAVA MOBILE)
 
 Ce couplage est optimal pour nos compétences et l'efficacité industrielle recherchée :

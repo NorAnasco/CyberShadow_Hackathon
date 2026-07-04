@@ -1,120 +1,118 @@
 # SP Sentinel - Plateforme de Protection Contre les Arnaques SMS au Togo
 
-## 📝 Description du Projet
-SP Sentinel est un écosystème de cybersécurité souverain conçu pour protéger les citoyens et les PME du Togo contre l'ingénierie sociale et les fraudes financières par messagerie (Moov Flooz, Togocom TMoney, CEET). La solution combine un agent mobile Android natif doté d'un moteur d'analyse heuristique sémantique 100% hors-ligne et une console d'administration centrale (SOC) qui cartographie les attaques à l'échelle nationale et automatise la Threat Intelligence par IA.
+SP Sentinel est un système de sécurité innovant de type "Souverainiste et Local" créé pour protéger les citoyens togolais contre les cyber-fraudes recensées (faux gains Moov Flooz, Togocom TMoney, phishing, fausses convocations de gendarmerie ou factures CEET fictives).
+
+Ce système a été entièrement conçu et développé par l'équipe : **ANANIVI, RADJI, KPETO et EHE**.
 
 ---
 
-## 🎯 Problématique choisie & Track Hackathon
-* **Track correspondant :** Cybersécurité, Protection des Populations et Souveraineté Numérique.
-* **La Problématique :** Au Togo, l’ingénierie sociale par SMS et WhatsApp (usurpations d’identité de la gendarmerie, faux gains Flooz/TMoney, fausses factures CEET d'urgence) cause des préjudices financiers majeurs. Les solutions existantes dépendent du Cloud, ce qui sature les forfaits internet et compromet la vie privée. SP Sentinel résout ce problème grâce à un filtrage hybride local/centralisé, protégeant l'utilisateur de manière proactive, gratuite et sans connexion Internet requise sur le terminal mobile.
+## 🛠️ Organisation du Projet
+
+Le projet est structuré de manière modulaire à la racine de l'espace de travail :
+1. **`/mobile_agent/`** : L'unité de protection Android (écrite en Java natif). Elle intercepte les messages malveillants à la volée.
+2. **`/serveur_central_python/`** : Le module haut de gamme d'analyse judiciaire et de Threat Intelligence (FastAPI & Scrapers CERT.TG/ANCY).
+3. **`/serveur_dashboard_react/`** : Le moteur serveur d'administration locale, capable de relayer la télémétrie des agents et de gérer les configurations du SOC.
+4. **`/src/`** : L'interface d'administration interactive (React/Vite/TS) représentant le tableau de bord du SOC central de Lomé.
 
 ---
 
-## 🛠️ Prérequis Système
-Pour exécuter l'ensemble de la solution localement, assurez-vous de disposer des éléments suivants :
-* **Système d'exploitation :** Windows 10/11, macOS, ou Linux.
-* **Environnement Web & Dashboard :** Node.js (version 18.x ou supérieure) et npm.
-* **Environnement Serveur API :** Python (version 3.10 ou supérieure) et gestionnaire d'environnement virtuel `venv`.
-* **Environnement Mobile Android :** Android Studio (version Ladybug ou ultérieure) avec le SDK Android installé.
-* **Terminal de Test :** Un smartphone Android physique (v9.0+) connecté en débogage USB ou un émulateur Android configuré dans Android Studio.
+## 🛡️ Fonctionnalités Majeures
+
+### 📱 L'Agent Mobile Android (Sécurité Souveraine)
+L'agent mobile s'installe via un binaire APK et protège l'usager sans nécessiter d'accès permanent à Internet :
+* **Défense par signatures locales (Zéro-Trust)** : Gère une base intégrée contenant les numéros connus de fraudeurs et les liens de phishing. Blocage immédiat avec alerte rouge critique s'il y a correspondance.
+* **Moteur d'Heuristique Comportementale (Privilège Offline)** : Si un expéditeur est inconnu, l'application évalue la structure sémantique en direct (recherche de l'appât du gain, de sentiment d'urgence ou d'usurpation d'autorité d'autres administrations togolaises). En cas de menace détectée, elle bloque temporairement et envoie une alerte.
+* **Gestion Nuancée des Contacts Connus** : Pour ne pas froisser les liens familiaux ou amicaux, si une signature malveillante est interceptée depuis un **contact enregistré**, l'application ne va pas accuser l'expéditeur mais guider l'utilisateur avec bienveillance (ex: avertir que le proche s'est fait pirater ou a relayé le message par inadvertance, conseiller de l'appeler pour le prévenir).
+* **Liste de Confiance (Liste Verte)** : L'usager peut ajouter un correspondant ou un groupe à sa Liste Verte pour désactiver l'analyse psychologique comportementale et éviter de faux signaux.
+* **Zone de Déclaration Citoyenne Directe (Nouveau!)** : Intégration d'un module de signalement citoyen. Tout utilisateur peut directement déclarer un appel vocal suspect ou un SMS malveillant reçu, spécifier la catégorie de cybermenace (Flooz/TMoney, cadeaux, chantage/menace, harcèlement) et décrire l'escroquerie.
+* **Alertes Vocales & Visuelles Éducatives (Nouveau!)** : En cas d'appel vocal suspect, l'agent affiche des avertissements vulgarisés et clairs en français pour guider le citoyen (ne pas décrocher, ne jamais effectuer de transfert Flooz/TMoney, préserver les codes secrets). Les écrans d'interception (Overlay) et de quarantaine sémantique adoptent une charte visuelle rouge sombre harmonisée (`#150404`).
+
+### 💻 Le Tableau de bord d'Administration de Lomé (SOC)
+* **Cartographie en Temps Réel** : Visualise directement la provenance des signaux d'arnaques remontés par les téléphones sur une carte du Togo (Lomé, Sokodé, Kara, Atakpamé, Kpalimé, Dapaong, etc.).
+* **Téléphone Virtuel de Simulation** : Un onglet de supervision (Dashboard) intègre un smartphone de simulation interactif. Ce simulateur permet de tester le moteur de l'application, de simuler des SMS/WhatsApp suspects, de passer des appels frauduleux, et de tester la zone de déclaration citoyenne en direct.
+* **Threat Intelligence & Scraping** : Le back-end scrape en continu les communiqués des sites gouvernementaux officiels **CERT.TG** et **ANCY (ancy.gouv.tg)**. L'IA Gemini extrait de manière structurée les adjectifs, numéros et liens malveillants pour mettre à jour la base noire d'un seul clic.
+* **Inclusion Directe des Déclarations** : Les plaintes et déclarations soumises par les citoyens via le module de déclaration alimentent instantanément le registre de conformité et l'analyse judiciaire (Forensics) du SOC de Lomé.
 
 ---
 
-## ⚙️ Procédure d'Installation Pas à Pas
+## 🚀 Guide de Test Rapide & Simplifié pour le Jury
 
-### 1. Cloner le projet et préparer l'interface Web (Dashboard)
-```bash
-# Cloner le dépôt GitHub
-git clone https://github.com/NorAnasco/TCCHackDefend2026_CyberShadow
-cd TCCHackDefend2026_CyberShadow/
+Pour simplifier au maximum l'évaluation par le jury, nous avons pré-configuré des **boutons d'action rapide (Presets)** dans l'application mobile et dans le code d'administration. Il n'est plus nécessaire de modifier manuellement le code pour basculer entre les configurations.
 
-# Installer les dépendances du tableau de bord d'administration
-npm install
-```
+### 🌐 ALTERNATIVE A : Test 100% en Ligne (Recommandé, Ultra-Simple)
+La plateforme administrative et l'acquisition des données SOC sont déjà déployées en production sur le cloud.
 
-### 2. Configurer le Serveur Central d'Analyse (Python FastAPI)
-Sur Windows (cmd) :
-```bash
-cd serveur_central_python
-python -m venv venv
-call venv\Scripts\activate
-pip install -r requirements.txt
-```
-Sur macOS/Linux : 
-```bash
-cd serveur_central_python
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-### 3. Récupérer le fichier d'installation Mobile (.APK)
-* Nulle obligation de compiler le code ! Transférez le fichier d'installation binaire app-debug.apk (disponible dans les dossiers de build ou fourni avec les livrables) sur votre téléphone Android de test.
-* Ouvrez le fichier sur le téléphone. Si le système indique que l'application provient d'une source inconnue, validez en cliquant sur "Autoriser pour cette source".
-* ### ⚠️ IMPORTANT : Résoudre le bouton d'autorisation grisé/gelé (Android 13, 14 & 15)
-Sur les versions récentes d'Android, Google bloque par défaut l'accès aux autorisations sensibles (comme l'accès aux notifications indispensable pour intercepter les SMS d'arnaque) pour les applications installées hors du Play Store via APK.
-
-Si le bouton d'activation de l'accès aux notifications est grisé, suivez cette procédure rapide pour le débloquer :
-
-* Ouvrez les Paramètres (Settings) de votre téléphone Android.
-* Allez dans Applications (Apps) et sélectionnez l'application SP_TG (ou Shield) dans la liste.
-* Sur la page d'informations de l'application (App Info), appuyez sur les trois petits points (menu) situés tout en haut à droite.
-* Cliquez sur l'option "Autoriser les paramètres restreints" (Allow restricted settings).
-* Confirmez l'opération avec votre code de déverrouillage d'écran (schéma, PIN ou empreinte).
-* Revenez en arrière dans l'application ou dans les paramètres d'autorisation de notifications : le bouton n'est plus grisé ! Vous pouvez désormais cocher et accorder l'accès normalement.
----------
-
-## 🚀 Lancement de l'Application
-Vous pouvez tester l'application selon deux approches (en ligne ou en local) :
-
-**Option A : Démonstration immédiate via la plateforme Web en ligne (Recommandé)**
-Pour un test instantané sans installation lourde, notre plateforme serveur centrale et le dashboard de supervision sont déployés de manière permanente à cette adresse :
-🔗 https://sp-sentinel-hq.onrender.com/
-----------
-**Option B : Lancement des composants en local**
-
-* **Étape 1 : Démarrer le Dashboard d'administration (Port 3000)**
-```bash
-npm run dev
-```
-* Accès à la console d'administration : http://localhost:3000
----
-* **Étape 2 : Démarrer le Serveur API Python (Port 8000)**
-```bash
-python main.py
-```
-* Accès à la documentation Swagger interactive des APIs : http://localhost:8000/docs
+1. **La Console en Ligne** : Accédez à l'URL de production fournie (hébergée sur Render ou l'App de prévisualisation : `https://sp-sentinel-hq.onrender.com/`).
+2. **L'Application Mobile** :
+   * Ouvrez le projet `/mobile_agent/` dans Android Studio.
+   * Compilez directement l'APK de test (`Build > Build Bundle(s) / APK(s) > Build APK(s)`).
+   * Installez-la sur un émulateur ou sur votre téléphone de test.
+   * **Raccordement Instantané** : Dans l'interface utilisateur de l'application mobile, cliquez sur le bouton vert **🌐 PROD LIGNE**. L'adresse de synchronisation `https://sp-sentinel-hq.onrender.com/` se configure automatiquement.
+   * Appuyez sur **SAUVEGARDER L'ADRESSE**. L'application va immédiatement se synchroniser avec le serveur du SOC en ligne d'un simple geste.
 
 ---
 
-##  🔐 Identifiants de Test (Compte Démo)
-La console d'administration est hautement sécurisée (mots de passe hachés de manière irréversible en SHA-256 et blocage automatique après 5 tentatives infructueuses).
+### 💻 ALTERNATIVE B : Test 100% Local (Dashboard Local + Émulateur local)
+Si le jury préfère faire tourner tout le système d'administration hors du cloud sur son propre ordinateur de développement.
 
-Pour l'évaluation de notre Proof of Concept (PoC) par le jury, utilisez les accès d'administration pré-configurés suivants :
+1. **Lancement de l'Administration Locale** :
+   * Ouvrez un terminal à la racine du projet local.
+   * Installez les paquets de dépendances :
+     ```bash
+     npm install
+     ```
+   * Lancez le serveur d'administration et d'API en local :
+     ```bash
+     npm run dev
+     ```
+   * Le tableau de bord du SOC est désormais accessible sur : `http://localhost:3000`.
+2. **Configuration du smartphone virtuel (Émulateur Android)** :
+   * Lancez votre émulateur Android (AVD) de test depuis Android Studio.
+   * Lancez l'application installée sur l'émulateur.
+   * **Raccordement Local Auto** : Dans l'application, cliquez simplement sur le bouton gris **💻 TEST LOCAL**. L'adresse se configure instantanément sur `http://10.0.2.2:3000` (l'adresse IP loopback spéciale intégrée à Android pour cibler le protocole localhost de la machine hôte).
+   * Appuyez sur **SAUVEGARDER L'ADRESSE**. L'émulateur est désormais lié en temps réel à votre serveur local de développement. Vous pouvez intercepter des notifications fictives et les observer se synchroniser instantanément sur votre tableau de bord local !
 
-## Comptes de démonstration
+---
 
-| Identifiant Administrateur (Username) | Mot de passe de Démo (Password) | Niveau de Privilèges |
-|----------------------------------------|---------------------------------|--|
-| ANANIVI | admin12345                      | Administrateur Principal (Full Access) |
+### 🔌 ALTERNATIVE C : Test Hybride (Dashboard Local + Téléphone Physique branché)
+Si vous lancez l'administration en local sur votre PC mais que vous souhaitez utiliser un **vrai téléphone Android** connecté via câble USB ou sur le réseau sans fil local.
 
+1. **Réseau Partagé** : Assurez-vous que votre PC de développement et votre téléphone Android de test sont connectés au **même réseau Wi-Fi** local.
+2. **Lancer le serveur sur le PC** : Démarrez l'administration avec `npm run dev`.
+3. **Trouver votre adresse IP** : Dans le terminal de votre PC, entrez la commande réseau :
+   * Sur Windows : `ipconfig` (recherchez l'adresse IPv4 sous Wi-Fi, ex: `192.168.1.150`).
+   * Sur macOS/Linux : `ifconfig` ou `ip a`.
+4. **Configuration du Téléphone** :
+   * Installez l'APK sur votre vrai téléphone.
+   * Saisissez l'adresse de votre ordinateur suivie du port `:3000` (ex: `http://192.168.1.150:3000`) dans le champ de saisie de l'application.
+   * Appuyez sur le bouton de sauvegarde pour recevoir les configurations et y faire remonter la télémétrie.
 
---------
+---
 
-## 🧪 Protocole Rapide de Validation (Pour le Jury)
+## ⚠️ Configuration cruciale d'Android pour le test de l'APK (Guide pas-à-pas)
 
-* **1. Test d'interception virtuel (Zéro installation mobile) :** Allez sur l’onglet "DASHBOARD" du site web local ou en ligne. Dans le volet droit de l'écran, utilisez **le Téléphone Virtuel interactif**. Saisissez un faux SMS d'arnaque (ex: "Félicitations Moov, vous avez gagné un bonus de 200.000F, tapez votre code PIN...") et validez. Vous verrez le message immédiatement bloqué et l'alerte remonter sur la carte du Togo.
+Qu'importe l'alternative choisie, pour que l'application d'arrière-plan fonctionne parfaitement sans être censurée par le système d'exploitation commercial Android de test, effectuez ces quelques réglages simples :
 
+### Étape 1 : Désactiver le Play Protect de Google
+Le système Play Protect censure par défaut toutes les applications expérimentales compilées localement qui écoutent les notifications et les SMS de bas niveau.
+1. Ouvrez l'application **Google Play Store** sur le smartphone de test.
+2. Cliquez sur votre **Profil d'utilisateur** (en haut à droite de l'écran).
+3. Cliquez sur **Play Protect**.
+4. Appuyez sur l'icône d'**Engrenage (Paramètres)** en haut à droite.
+5. Décochez et désactivez entièrement ces deux options :
+   * *« Analyser les applications avec Play Protect »*.
+   * *« Améliorer la détection des applications nocives »*.
 
-* **2. Threat Intelligence IA :** Accédez à l'onglet dédié pour voir comment l’IA Gemini extrait automatiquement les signatures d'escroquerie à partir des alertes scrapées en direct sur le site officiel de l'ANCY et du CERT.TG.
+### Étape 2 : Autoriser d'installer à partir de sources inconnues
+1. Transférez le binaire `app-debug.apk` généré par Android Studio vers le téléphone (via câble USB, WhatsApp, ou Google Drive).
+2. Lancez l'installation du fichier et acceptez de court-circuiter l'alerte d'accès des sources inconnues de votre navigateur ou gestionnaire de fichiers.
 
----------
-## 👥 Membres de l'Équipe
-* **ANANIVI Komlanvi** — Etudiant Licence 2 
-* **RADJI Kefyl** — Etudiant Licence 2
-* **KPETO Kokouvi Joël** — Etudiant Licence 2
-* **EHE Soler Godwin** — Etudiant Licence 2
----------
+### Étape 3 : Donner l'Accès aux Notifications système (Très important)
+1. Ouvrez l'application **SP_TG** fraîchement installée.
+2. L'assistant intégré s'ouvre pour vous demander l'Accès aux Notifications de bas niveau.
+3. Le téléphone vous redirige sur la page système "Accès aux notifications".
+4. Faites défiler la liste des applications, cherchez **SP_TG**, et **activez l'interrupteur d'autorisation**.
 
-Guide de Présentation pour le Hackathon #TCCHackDefend 2026 rédigé par l'équipe CyberShadow.
+### Étape 4 : Simuler une attaque et valider
+* **Simulateur Intégré (Zéro matériel de rechange)** : Dans le Dashboard de la console d'administration, utilisez le smartphone de simulation à droite, saisissez un message d'arnaque (ex: coupure CEET imminente ou gain de 150.000F) et admirez l'interception et le traitement sémantique en direct.
+* **Simulateur Physique (Vrai matériel)** : Envoyez un message frauduleux contenant des signatures répertoriées ou des techniques de manipulation (ex: *"Félicitations, vous êtes tiré au sort pour un gain de 100.000F Flooz. Saisissez votre code pour récupérer la somme"*) à l'appareil de test. L'application mobile interceptera la notification instantanément, affichera une alerte et l'enverra sur l'écran du SOC de Lomé.

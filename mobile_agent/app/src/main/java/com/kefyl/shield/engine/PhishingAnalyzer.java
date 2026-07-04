@@ -48,48 +48,67 @@ public class PhishingAnalyzer {
 
         // Récupérer toutes les signatures actives de la base locale
         List<Signature> activeSignatures = signatureDao.getAllSignatures();
+        if (activeSignatures == null || activeSignatures.isEmpty()) {
+            return null;
+        }
+
+        String lowerText = text.toLowerCase().trim();
+
+        // Nettoyage de la ponctuation et des accents étendus français pour le message
+        String cleanTextAll = lowerText.replaceAll("[^a-z0-9àâäéèêëîïôöùûüç]", "");
+
+        // Version dépouillée de protocole pour le message
+        String textNoProtocol = lowerText
+                .replace("https://", "")
+                .replace("http://", "")
+                .replace("www.", "");
 
         for (Signature signature : activeSignatures) {
             String patternStr = signature.getPattern().toLowerCase().trim();
-            String lowerText = text.toLowerCase();
+            String type = signature.getType().toUpperCase().trim();
 
-            // 1. Analyse si c'est un lien / domaine suspect
-            if ("URL".equalsIgnoreCase(signature.getType()) || "domain".equalsIgnoreCase(signature.getType())) {
-                if (lowerText.contains(patternStr)) {
-                    return signature; // Correspondance trouvée!
-                }
-            }
-            
-            // 2. Analyse si c'est un numéro d'arnaqueur connu (Signature de type PHONE)
-            else if ("PHONE".equalsIgnoreCase(signature.getType())) {
-                // Vérifier si la signature coïncide avec le numéro de l'expéditeur
+            // --- CAS A : COMPARAISON SOUPLE DE NUMÉRO (PHONE) ---
+            if ("PHONE".equals(type)) {
+                // 1. Comparaison avec le numéro de l'expéditeur
                 if (senderPhone != null && !senderPhone.trim().isEmpty()) {
                     String cleanSender = senderPhone.toLowerCase().replaceAll("[^a-z0-9+]", "");
                     String cleanPattern = patternStr.replaceAll("[^a-z0-9+]", "");
                     
-                    // Comparaison souple (avec/sans préfixe pays)
                     if (cleanSender.contains(cleanPattern) || cleanPattern.contains(cleanSender)) {
                         return signature;
                     }
                 }
                 
-                // Fallback: recherche du numéro suspect également au sein du corps du texte du message
-                String cleanText = lowerText.replaceAll("[^a-z0-9+]", "");
-                String cleanPattern = patternStr.replaceAll("[^a-z0-9+]", "");
-                if (cleanText.contains(cleanPattern)) {
+                // 2. Recherche du numéro suspect dans le corps du texte
+                String digitsText = lowerText.replaceAll("[^0-9]", "");
+                String digitsPattern = patternStr.replaceAll("[^0-9]", "");
+                if (!digitsPattern.isEmpty() && digitsText.contains(digitsPattern)) {
+                    return signature;
+                }
+                continue;
+            }
+
+            // --- CAS B : TOUTES AUTRES SIGNATURES (DOMAIN, URL, TEXT_PATTERN, EMAIL, IP, ETC.) ---
+            // 1. Recherche par sous-chaîne exacte (Extrêmement efficace et universel)
+            if (lowerText.contains(patternStr)) {
+                return signature;
+            }
+
+            // 2. Recherche par suppression de protocoles (Utile si l'utilisateur a enregistré l'URL complète mais que le SMS a un format différent)
+            String patternNoProtocol = patternStr
+                    .replace("https://", "")
+                    .replace("http://", "")
+                    .replace("www.", "");
+            if (!patternNoProtocol.isEmpty()) {
+                if (textNoProtocol.contains(patternNoProtocol) || lowerText.contains(patternNoProtocol)) {
                     return signature;
                 }
             }
-            
-            // 3. Simple recherche textuelle ou motif générique
-            else {
-                // Nettoyage de ponctuation/espace des patrons de texte pour déjouer les variations d'interponction
-                String cleanText = lowerText.replaceAll("[^a-z0-9àéèêîôûç]", "");
-                String cleanPattern = patternStr.replaceAll("[^a-z0-9àéèêîôûç]", "");
-                
-                if (cleanText.contains(cleanPattern) || lowerText.contains(patternStr)) {
-                    return signature;
-                }
+
+            // 3. Recherche tolérante aux interponctions, espaces multiples, accents, etc. (Anti-obfuscation)
+            String cleanPatternAll = patternStr.replaceAll("[^a-z0-9àâäéèêëîïôöùûüç]", "");
+            if (!cleanPatternAll.isEmpty() && cleanTextAll.contains(cleanPatternAll)) {
+                return signature;
             }
         }
         return null;

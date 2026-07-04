@@ -7,6 +7,8 @@ import {
   Search, 
   Filter, 
   ShieldAlert, 
+  ShieldCheck,
+  ShieldX,
   Wifi, 
   WifiOff, 
   CornerDownRight, 
@@ -21,12 +23,24 @@ import {
   Bell,
   CheckCircle,
   AlertTriangle,
+  AlertOctagon,
   ChevronRight,
   Battery,
   AlertCircle,
   Info,
   Mail,
-  Lock
+  Lock,
+  Phone,
+  FileText,
+  User,
+  Sliders,
+  QrCode,
+  Globe,
+  HelpCircle,
+  Play,
+  File,
+  Check,
+  BookOpen
 } from "lucide-react";
 import { 
   ResponsiveContainer, 
@@ -37,12 +51,14 @@ import {
   Tooltip, 
   CartesianGrid, 
 } from "recharts";
-import { MobileAgent, MobileSignal, Threat } from "../types";
+import { MobileAgent, MobileSignal, Threat, PhoneComplaint, ScamPhoneNumber } from "../types";
 
 interface Props {
   threats: Threat[];
   agents: MobileAgent[];
   mobileSignals: MobileSignal[];
+  complaints?: PhoneComplaint[];
+  scams?: ScamPhoneNumber[];
   onTriggerFlashUpdate: () => Promise<any>;
   onRefreshData?: () => void;
 }
@@ -51,6 +67,8 @@ export default function AgentSupervisionTab({
   threats,
   agents, 
   mobileSignals, 
+  complaints = [],
+  scams = [],
   onTriggerFlashUpdate,
   onRefreshData 
 }: Props) {
@@ -69,13 +87,86 @@ export default function AgentSupervisionTab({
     }
   });
   
-  const [phoneState, setPhoneState] = useState<"dashboard" | "receiving" | "quarantine">("dashboard");
+  const [phoneState, setPhoneState] = useState<"dashboard" | "receiving" | "quarantine" | "declarations">("dashboard");
   const [selectedTemplate, setSelectedTemplate] = useState(0);
   const [customSender, setCustomSender] = useState("+228 99 12 04 85");
   const [customText, setCustomText] = useState("");
   const [activeMessageText, setActiveMessageText] = useState("");
   const [activeSender, setActiveSender] = useState("");
   const [isSimulatingApiCall, setIsSimulatingApiCall] = useState(false);
+
+  // --- FOUR NAVIGATION TABS STATES ---
+  const [phoneTab, setPhoneTab] = useState<"accueil" | "signaler" | "historique" | "profil">("accueil");
+  
+  // --- REPORT TAB STATES ---
+  const [reportTarget, setReportTarget] = useState("");
+  const [reportDetails, setReportDetails] = useState("");
+  const [reportType, setReportType] = useState<"appel" | "sms" | "whatsapp" | "email" | "lien" | "site" | "compte" | "autre">("sms");
+  const [reportStatus, setReportStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
+
+  // --- PROFILE TAB STATES ---
+  const [isOnlineMode, setIsOnlineMode] = useState(true);
+  const [serverAddress, setServerAddress] = useState("https://sp-sentinel-hq.onrender.com");
+  const [syncPeriod, setSyncPeriod] = useState("14"); // 14 jours
+  const [userName, setUserName] = useState("Citoyen_Volontaire_Togo");
+  const [isEditingUser, setIsEditingUser] = useState(false);
+
+  // --- LOCAL HISTORY LIST STATE ---
+  const [localHistory, setLocalHistory] = useState<Array<{
+    id: string;
+    type: "signalement" | "intercept";
+    title: string;
+    details: string;
+    time: string;
+    status: "sûr" | "danger" | "transmis";
+  }>>([
+    {
+      id: "hist-1",
+      type: "intercept",
+      title: "Appel masqué bloqué",
+      details: "Numéro suspect bloqué d'office (+228 92 88 12 34)",
+      time: "Hier, 18:42",
+      status: "danger"
+    },
+    {
+      id: "hist-2",
+      type: "intercept",
+      title: "Tentative d'arnaque Moov",
+      details: "SMS frauduleux bloqué automatiquement (+228 99 12 04 85)",
+      time: "Hier, 14:15",
+      status: "danger"
+    },
+    {
+      id: "hist-3",
+      type: "signalement",
+      title: "Signalement d'arnaque envoyé",
+      details: "Message d'escroquerie Flooz (+228 99120485)",
+      time: "25 Juin, 10:30",
+      status: "transmis"
+    },
+    {
+      id: "hist-4",
+      type: "signalement",
+      title: "Numéro suspect déclaré",
+      details: "+228 90 41 82 12 déclaré au centre",
+      time: "24 Juin, 16:50",
+      status: "transmis"
+    }
+  ]);
+
+  // --- STATE FOR CITIZEN DECLARATIONS FORM ---
+  const [declaringPhone, setDeclaringPhone] = useState("+228 99 ");
+  const [declaringCategory, setDeclaringCategory] = useState("Vente pyramidale / Faux gains");
+  const [declaringDesc, setDeclaringDesc] = useState("");
+  const [declarationStatusMsg, setDeclarationStatusMsg] = useState("");
+  const [isSubmittingDeclaration, setIsSubmittingDeclaration] = useState(false);
+
+  // --- STATE FOR VOICE CALL SIMULATION ---
+  const [simMode, setSimMode] = useState<"sms" | "call" | "declaration">("sms");
+  const [incomingCallNumber, setIncomingCallNumber] = useState("+228 92 88 12 34");
+  const [voiceCallState, setVoiceCallState] = useState<"idle" | "incoming" | "active" | "alert">("idle");
+  const [isCallScam, setIsCallScam] = useState(false);
+  const [callerName, setCallerName] = useState("Numéro Inconnu");
 
   // New real-time intercept overlay variables
   const [showInAppOverlayAlert, setShowInAppOverlayAlert] = useState(false);
@@ -88,11 +179,13 @@ export default function AgentSupervisionTab({
   const [isShieldActive, setIsShieldActive] = useState(true);
   const [showNotification, setShowNotification] = useState(false);
   const [phoneLocked, setPhoneLocked] = useState(false);
+  const [isCheckingConnection, setIsCheckingConnection] = useState(false);
+  const [connectionCheckResult, setConnectionCheckResult] = useState<string | null>(null);
 
   // --- EXTRA SHIELD OPTIONS AGAINST FALSE POSITIVES ---
   const [messageSourceType, setMessageSourceType] = useState<"unknown" | "contact" | "group">("unknown");
   const [contactIndex, setContactIndex] = useState(0);
-  const [groupName, setGroupName] = useState("Famille & Voisins Lomé 💬");
+  const [groupName, setGroupName] = useState("Famille & Voisins Lomé");
   const [trustedGroups, setTrustedGroups] = useState<string[]>([]);
   const [whitelistedCheckNotification, setWhitelistedCheckNotification] = useState(false);
 
@@ -102,10 +195,10 @@ export default function AgentSupervisionTab({
 
   // Repertoires / contacts enregistres par l'utilisateur (Trusted Address Book)
   const registeredContacts = [
-    { name: "Maman 🧑‍🍼", phone: "+228 90 12 34 56" },
-    { name: "Koffi Ami 🤝", phone: "+228 91 88 44 22" },
-    { name: "Directeur OTR 🏢", phone: "+228 92 11 00 11" },
-    { name: "Oncle Kossi 👴", phone: "+228 93 45 67 89" }
+    { name: "Maman", phone: "+228 90 12 34 56" },
+    { name: "Koffi Ami", phone: "+228 91 88 44 22" },
+    { name: "Directeur OTR", phone: "+228 92 11 00 11" },
+    { name: "Oncle Kossi", phone: "+228 93 45 67 89" }
   ];
 
   const addLog = (text: string, type: "info" | "success" | "warn" = "info") => {
@@ -116,7 +209,7 @@ export default function AgentSupervisionTab({
   // Predefined Togolese Phishing SMS/WhatsApp cases
   const simTemplates = [
     {
-      title: "📞 Gains Offre Moov/Flooz",
+      title: "Gains Offre Moov/Flooz",
       sender: "+228 99 12 04 85",
       text: "[Flooz] Félicitations! Votre numéro a été tiré au sort pour la promotion de la fête nationale. Vous gagnez la somme de 300.000 FCFA. Appelez vite le 99120485 pour débloquer votre versement.",
       category: "Tentative de vol d'argent (Faux gains)",
@@ -124,7 +217,7 @@ export default function AgentSupervisionTab({
       heuristics: "Répertorié dans la base de données de sécurité nationale de Lomé. Bloqué d'office comme arnaque confirmée, même si reçu d'un ami."
     },
     {
-      title: "⚡ Fausse Facture Courant CEET",
+      title: "Fausse Facture Courant CEET",
       sender: "+228 90 41 82 12",
       text: "CEET ALERTE: Facture non réglée. Votre électricité sera coupée sous 24 heures. Réglez d'urgence votre impayé sur: https://ceet-facturation-tmoney.com/",
       category: "Fausse menace de coupure CEET",
@@ -132,7 +225,7 @@ export default function AgentSupervisionTab({
       heuristics: "Le faux site 'ceet-facturation-tmoney.com' est enregistré dans la base de signatures suspectes. Bloqué immédiatement pour usurpation."
     },
     {
-      title: "🏫 Fausse Subvention ANCY",
+      title: "Fausse Subvention ANCY",
       sender: "+228 92 11 34 56",
       text: "Recrutement urgent ANCY: Subvention d'État disponible pour les citoyens étudiants et entrepreneurs du Togo (50.000F/mois). Inscrivez-vous vite: http://ancy.gouv.tg-subvention.net",
       category: "Fausse aide de l'État pour vol d'infos",
@@ -140,7 +233,7 @@ export default function AgentSupervisionTab({
       heuristics: "Le site 'ancy.gouv.tg-subvention.net' usurpe l'État et figure dans la base nationale de signalements."
     },
     {
-      title: "💸 Exemple : dépôt pressé (Non présent dans la base)",
+      title: "Exemple : dépôt pressé (Base blanche)",
       sender: "+228 99 12 04 85",
       text: "consulte ton solde je viens de t'envoyer un dépôt fait vite je suis presser",
       category: "Technique de manipulation (Urgence factice)",
@@ -148,7 +241,7 @@ export default function AgentSupervisionTab({
       heuristics: "Non connu dans la base de données. Analyse en direct : l'alerte ne se déclenchera que si ce message est envoyé par un numéro inconnu. Aucun signalement si envoyé par vos contacts."
     },
     {
-      title: "💬 Vol de compte WhatsApp (Non présent dans la base)",
+      title: "Vol de compte WhatsApp (Base blanche)",
       sender: "+228 97 88 55 22",
       text: "Salut, j'ai envoyé accidentellement un code d'activation SMS à 6 chiffres sur ton numéro par mégarde, s'il te plaît renvoie-le moi d'urgence pour me dépanner !",
       category: "Vol de compte par code secret",
@@ -590,7 +683,7 @@ export default function AgentSupervisionTab({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-5">
         <div>
           <div className="flex items-center gap-2">
-            <Radio className="w-5 h-5 text-[#3B82F6] animate-pulse" />
+            <Radio className="w-5 h-5 text-[#10B981] animate-pulse" />
             <h2 className="text-base font-bold text-white uppercase tracking-wider font-mono">
               SUPERVISION ET CONFORMITÉ DE L&apos;APPLI MOBILE &laquo; SP_TG mobile &raquo;
             </h2>
@@ -604,7 +697,7 @@ export default function AgentSupervisionTab({
         <button
           onClick={handleFlashUpdateClick}
           disabled={isFlashing}
-          className={`px-4 py-2.5 rounded-xl text-xs font-mono font-bold flex items-center gap-2 border transition duration-300 cursor-pointer ${isFlashing ? "bg-[#06B6D4]/10 text-[#06B6D4] border-[#06B6D4]/25" : "bg-[#3B82F6] hover:bg-[#3B82F6]/30 text-white border-transparent"}`}
+          className={`px-4 py-2.5 rounded-xl text-xs font-mono font-bold flex items-center gap-2 border transition duration-300 cursor-pointer ${isFlashing ? "bg-[#10B981]/15 text-[#10B981] border-[#10B981]/25" : "bg-[#10B981] hover:bg-[#10B981]/80 text-white border-transparent"}`}
         >
           <Zap className={`w-4 h-4 ${isFlashing ? "animate-spin" : ""}`} />
           {isFlashing ? "BROADCAST EN COURS..." : "DIFFUSION DE SÉCURITÉ EN DIRECT (FLASH)"}
@@ -615,8 +708,8 @@ export default function AgentSupervisionTab({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* Total Agents */}
-        <div className="bg-[#121A2F] border border-white/5 rounded-xl p-5 relative overflow-hidden group shadow-md">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full blur-2xl pointer-events-none transition duration-300"></div>
+        <div className="bg-[#111827] border border-white/5 rounded-xl p-5 relative overflow-hidden group shadow-md">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-[#10B981]/5 rounded-full blur-2xl pointer-events-none transition duration-300"></div>
           <span className="text-[10px] font-mono font-bold text-[#94A3B8] block uppercase tracking-wider">Citoyens Enrôlés</span>
           <div className="flex items-baseline gap-2 mt-2">
             <span className="text-3xl font-bold text-white font-mono tracking-tight">{stats.total}</span>
@@ -629,7 +722,7 @@ export default function AgentSupervisionTab({
         </div>
 
         {/* Online State */}
-        <div className="bg-[#121A2F] border border-white/5 rounded-xl p-5 relative overflow-hidden group shadow-md">
+        <div className="bg-[#111827] border border-white/5 rounded-xl p-5 relative overflow-hidden group shadow-md">
           <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none transition duration-300"></div>
           <span className="text-[10px] font-mono font-bold text-[#10B981] block uppercase tracking-wider">Agents en écoute active</span>
           <div className="flex items-baseline gap-2 mt-2">
@@ -643,7 +736,7 @@ export default function AgentSupervisionTab({
         </div>
 
         {/* Offline State */}
-        <div className="bg-[#121A2F] border border-white/5 rounded-xl p-5 relative overflow-hidden group shadow-md">
+        <div className="bg-[#111827] border border-white/5 rounded-xl p-5 relative overflow-hidden group shadow-md">
           <div className="absolute top-0 right-0 w-24 h-24 bg-slate-500/5 rounded-full blur-2xl pointer-events-none"></div>
           <span className="text-[10px] font-mono font-bold text-slate-400 block uppercase tracking-wider">En veille locale (sans Net)</span>
           <div className="flex items-baseline gap-2 mt-2">
@@ -657,15 +750,15 @@ export default function AgentSupervisionTab({
         </div>
 
         {/* Received Signals count */}
-        <div className="bg-[#121A2F] border border-white/5 rounded-xl p-5 relative overflow-hidden group shadow-md">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-cyan-500/5 rounded-full blur-2xl pointer-events-none transition duration-300"></div>
-          <span className="text-[10px] font-mono font-bold text-[#06B6D4] block uppercase tracking-wider">Incidents Bloqués à l&apos;échelle</span>
+        <div className="bg-[#111827] border border-white/5 rounded-xl p-5 relative overflow-hidden group shadow-md">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-[#10B981]/5 rounded-full blur-2xl pointer-events-none transition duration-300"></div>
+          <span className="text-[10px] font-mono font-bold text-[#10B981] block uppercase tracking-wider">Incidents Bloqués à l&apos;échelle</span>
           <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-3xl font-bold text-[#06B6D4] font-mono tracking-tight">{stats.totalSignals}</span>
-            <span className="text-xs text-[#06B6D4]/80 font-mono">alertes SOC</span>
+            <span className="text-3xl font-bold text-[#10B981] font-mono tracking-tight">{stats.totalSignals}</span>
+            <span className="text-xs text-[#10B981]/80 font-mono">alertes SOC</span>
           </div>
-          <div className="mt-3 flex items-center gap-1.5 text-[10px] font-mono text-[#06B6D4]/80">
-            <Activity className="w-3.5 h-3.5 text-[#06B6D4] animate-pulse" />
+          <div className="mt-3 flex items-center gap-1.5 text-[10px] font-mono text-[#10B981]/80">
+            <Activity className="w-3.5 h-3.5 text-[#10B981] animate-pulse" />
             <span>Moteur d&apos;analyse de Lomé en ligne</span>
           </div>
         </div>
@@ -766,7 +859,7 @@ export default function AgentSupervisionTab({
                     placeholder="Filtrer..."
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
-                    className="bg-[#0B1020] border border-white/5 rounded-lg pl-7 pr-3 py-1 text-[10px] text-white placeholder-slate-600 focus:outline-none focus:border-[#3B82F6]"
+                    className="bg-[#0B1020] border border-white/5 rounded-lg pl-7 pr-3 py-1 text-[10px] text-white placeholder-slate-600 focus:outline-none focus:border-[#10B981]"
                   />
                   <Search className="w-3 h-3 text-slate-500 absolute left-2.5 top-2.5" />
                 </div>
@@ -849,10 +942,10 @@ export default function AgentSupervisionTab({
         <div className="xl:col-span-7 space-y-6">
           
           {/* SIMULATION EXPLANATORY CARD */}
-          <div className="bg-[#121A2F] border border-[#3B82F6]/25 rounded-xl p-5 shadow-md relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/[0.02] rounded-full blur-3xl pointer-events-none"></div>
+          <div className="bg-[#111827] border border-[#10B981]/25 rounded-xl p-5 shadow-md relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-[#10B981]/[0.02] rounded-full blur-3xl pointer-events-none"></div>
             <div className="flex gap-3">
-              <Smartphone className="w-8 h-8 text-[#3B82F6] shrink-0 mt-0.5 animate-pulse" />
+              <Smartphone className="w-8 h-8 text-[#10B981] shrink-0 mt-0.5 animate-pulse" />
               <div>
                 <h3 className="text-xs font-bold text-white font-mono uppercase tracking-wider">
                   Démonstration Live Citoyenne
@@ -876,14 +969,124 @@ export default function AgentSupervisionTab({
               </div>
 
               {/* Status bar (Mock Android UI) */}
-              <div className="h-6 w-full px-4 pt-1 flex items-center justify-between text-[9px] font-mono text-slate-400 z-20 bg-black/60 font-medium">
-                <span>13:37</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[8px] bg-sky-500/10 text-[#38BDF8] px-1 rounded uppercase tracking-widest leading-none font-bold">SP_TG Net</span>
-                  <Wifi className="w-2.5 h-2.5 text-[#38BDF8]" />
-                  <Battery className="w-3.5 h-3.5 text-[#38BDF8]" />
+               <div className="h-6 w-full px-4 pt-1 flex items-center justify-between text-[9px] font-mono text-slate-400 z-20 bg-black/60 font-medium">
+                 <span>13:37</span>
+                 <div className="flex items-center gap-1.5">
+                   <span className="text-[8px] bg-sky-500/10 text-[#38BDF8] px-1 rounded uppercase tracking-widest leading-none font-bold">SP_TG Net</span>
+                   <Wifi className="w-2.5 h-2.5 text-[#38BDF8]" />
+                   <Battery className="w-3.5 h-3.5 text-[#38BDF8]" />
+                 </div>
+               </div>
+ 
+              {/* VOICE CALL SIMULATION SCREEN OVERLAY */}
+              {voiceCallState !== "idle" && (
+                <div className="absolute inset-0 bg-gradient-to-b from-[#0A1128] to-[#121F42] z-45 p-5 flex flex-col justify-between pt-10 text-white select-none animate-fade-in text-center font-sans">
+                  
+                  {/* Status Bar inside calling Screen */}
+                  <div className="absolute top-1 left-4 right-4 flex items-center justify-between text-[8px] font-mono text-slate-400 z-50 pt-2">
+                    <span>Appel Sécurisé</span>
+                    <span>Moov/Togo</span>
+                  </div>
+
+                  <div className="my-auto space-y-5 pt-8">
+                    {/* Pulsing Avatar or call indicator */}
+                    <div className="relative w-16 h-16 mx-auto flex items-center justify-center">
+                      <div className="absolute inset-0 bg-red-500/10 rounded-full animate-ping duration-2000"></div>
+                      <div className={`w-14 h-14 rounded-full flex items-center justify-center border-2 shadow-xl ${isCallScam ? "bg-red-950/80 border-red-500 text-red-100" : "bg-[#1D2B4A]/60 border-blue-500 text-slate-100"}`}>
+                        <Phone className="w-6 h-6 rotate-12 text-slate-200" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <span className="text-[9px] uppercase font-mono font-bold tracking-widest text-[#38BDF8] block animate-pulse">
+                        {voiceCallState === "incoming" ? "📟 Appel Entrant..." : "📞 En Conversation..."}
+                      </span>
+                      <h4 className="text-xs font-black text-white leading-tight break-all font-mono">
+                        {callerName}
+                      </h4>
+                      <p className="text-[9.5px] font-mono text-slate-400 tracking-wider select-all">
+                        {incomingCallNumber}
+                      </p>
+                    </div>
+
+                    {/* RULES TRIGGER WARNING */}
+                    <div className="mx-auto max-w-[210px] p-2.5 rounded-xl bg-black/60 border border-white/5 shadow leading-normal text-left">
+                      {isCallScam ? (
+                        <div className="space-y-1.5 text-slate-200">
+                          <div className="text-red-500 font-sans font-black text-[9.5px] uppercase tracking-wider flex items-center gap-1 leading-none animate-pulse">
+                            ⚠️ APPEL ARNAQUE !
+                          </div>
+                          <p className="text-[8.5px] text-red-300 leading-snug">
+                            <strong>Menteur connu :</strong> Ce numéro de téléphone essaie de vous mentir pour voler votre argent.
+                          </p>
+                          <div className="text-[8px] bg-red-950/40 p-1.5 rounded-lg border border-red-900/20 text-red-100/90 space-y-1 leading-tight">
+                            <div>• <strong>Ne répondez pas !</strong></div>
+                            <div>• N&apos;envoyez pas de Flooz ou Tmoney.</div>
+                            <div>• Ne donnez pas vos codes secrets.</div>
+                          </div>
+                        </div>
+                      ) : incomingCallNumber.trim().match(/^[A-Za-z\s]+$/) ? (
+                        <div className="space-y-1 text-center">
+                          <div className="text-emerald-400 font-sans font-black text-[8.5px] uppercase tracking-wider flex items-center justify-center gap-1 leading-none">
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> SERVICE ENREGISTRÉ SÛR
+                          </div>
+                          <p className="text-[8px] text-slate-300 leading-normal">
+                            C&apos;est un service officiel du Togo (<strong>{incomingCallNumber}</strong>). Sûr à 100%.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-1 text-center">
+                          <div className="text-slate-400 font-sans font-bold text-[8.5px] uppercase tracking-wider leading-none">
+                            👤 APPEL STANDARD
+                          </div>
+                          <p className="text-[8px] text-slate-400 leading-normal">
+                            Numéro ordinaire. Pas de signalement d&apos;arnaque reçu.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* CALL BUTTONS ROW */}
+                  <div className="pb-4 pt-2 flex items-center justify-center gap-6 font-mono">
+                    {voiceCallState === "incoming" ? (
+                      <>
+                        <button
+                          onClick={() => {
+                            setVoiceCallState("idle");
+                            addLog(`❌ Appel décliné pour le numéro ${incomingCallNumber}.`, "info");
+                          }}
+                          className="w-10 h-10 bg-red-650 hover:bg-red-650 active:scale-90 rounded-full flex items-center justify-center text-white cursor-pointer transition shadow-lg shrink-0"
+                          title="Décliner l'appel"
+                        >
+                          <Phone className="w-4 h-4 rotate-135 text-white" />
+                        </button>
+                        
+                        <button
+                          onClick={() => {
+                            setVoiceCallState("active");
+                            addLog(`📞 Conversation activée avec le numéro ${incomingCallNumber}. Soyez vigilant.`, "info");
+                          }}
+                          className="w-10 h-10 bg-emerald-500 hover:bg-emerald-600 active:scale-90 rounded-full flex items-center justify-center text-white cursor-pointer transition shadow-lg shrink-0 animate-bounce"
+                          title="Répondre"
+                        >
+                          <Phone className="w-4 h-4 text-white" />
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setVoiceCallState("idle");
+                          addLog(`⏹️ Fin d'appel vocal avec le numéro ${incomingCallNumber}.`, "info");
+                        }}
+                        className="py-1.5 px-4 bg-red-600 hover:bg-red-700 text-white rounded-full text-[9px] uppercase font-bold tracking-widest cursor-pointer transition shadow-lg duration-200"
+                      >
+                        ⏹️ RACCROCHER
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* LIVE SIMULATIVE PUSH NOTIFICATION POPUP */}
               {showNotification && (
@@ -891,25 +1094,33 @@ export default function AgentSupervisionTab({
                   className={`absolute top-7 left-2 right-2 p-3 bg-slate-950/95 border rounded-xl text-[11px] text-white shadow-xl z-50 animate-bounce cursor-pointer ${
                     containsKnownSignature 
                       ? "border-red-500/40 shadow-red-500/5 hover:border-red-400/50" 
-                      : "border-amber-500/25 hover:border-amber-400/40"
+                      : "border-emerald-500/30 hover:border-emerald-400/50"
                   }`}
                   onClick={handleOpenAlertAndBlock}
                 >
                   <div className={`flex items-center gap-2 mb-1.5 font-mono text-[9px] tracking-wider font-bold ${
-                    containsKnownSignature ? "text-red-400" : "text-amber-400"
+                    containsKnownSignature ? "text-red-400" : "text-emerald-400"
                   }`}>
                     <Bell className="w-3 h-3 animate-pulse" />
                     <span>
-                      {containsKnownSignature 
-                        ? "🚨 ARNAQUE CONFIRMÉE PAR LE CENTRE • SP_TG" 
-                        : isGroupSource 
-                          ? "⚠️ MESSAGE SUSPECT EN GROUPE • SP_TG" 
-                          : "⚠️ TENTATIVE D'ARNAQUE DÉTECTÉE • SP_TG"}
+                      {containsKnownSignature ? (
+                        <span className="inline-flex items-center gap-1">
+                          <AlertOctagon className="w-3.5 h-3.5 text-red-400 shrink-0" /> ARNAQUE CONFIRMÉE PAR LE CENTRE • SP_TG
+                        </span>
+                      ) : isGroupSource ? (
+                        <span className="inline-flex items-center gap-1">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" /> MESSAGE SUSPECT EN GROUPE • SP_TG
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" /> TENTATIVE D'ARNAQUE DÉTECTÉE • SP_TG
+                        </span>
+                      )}
                     </span>
                   </div>
                   <div className="flex items-start gap-2">
                     <div className={`p-1 rounded shrink-0 ${
-                      containsKnownSignature ? "bg-red-500/10 text-red-400" : "bg-amber-500/10 text-amber-400"
+                      containsKnownSignature ? "bg-red-500/10 text-red-400" : "bg-emerald-500/10 text-emerald-400"
                     }`}>
                       <Mail className="w-3.5 h-3.5" />
                     </div>
@@ -970,45 +1181,130 @@ export default function AgentSupervisionTab({
               {/* SMARTPHONE VIRTUAL SCREEN */}
               <div className="flex-1 bg-[#050B1D] rounded-[32px] overflow-hidden flex flex-col justify-between relative p-4 text-xs select-none">
                 
+                {/* High fidelity StatusBar of simulated Smartphone */}
+                <div className="h-5 w-full flex items-center justify-between px-1 text-slate-500 text-[8px] font-mono relative z-10 select-none border-b border-white/[0.03] pb-1 mb-1">
+                  <div className="flex items-center gap-1 font-bold">
+                    <span>TOGO CELL</span>
+                    <Wifi className="w-2.5 h-2.5 text-emerald-500" />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Battery className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>88%</span>
+                    <span className="font-bold text-slate-300 ml-1">12:45</span>
+                  </div>
+                </div>
+
                 {/* Visual backdrop watermark style */}
                 <div className="absolute inset-0 bg-radial-[circle_at_top] from-blue-500/5 to-transparent pointer-events-none z-0"></div>
 
                 {/* REAL-TIME INTERCEPT OVERLAY MODAL */}
                 {showInAppOverlayAlert && (
-                  <div className="absolute inset-x-2 top-8 bottom-8 bg-slate-950/98 border border-red-500/50 rounded-2xl z-50 flex flex-col justify-between p-4 shadow-2xl animate-fade-in text-slate-100">
-                    <div className="flex items-center gap-1.5 border-b border-white/5 pb-2">
-                       <ShieldAlert className="w-5 h-5 text-red-500 shrink-0" />
-                       <div className="leading-none">
-                         <span className="font-mono font-bold text-[9px] text-red-400 block tracking-widest">{overlayAlertTitle}</span>
-                         <span className="text-[7px] text-slate-400 font-mono uppercase font-black block mt-0.5">INTERCEPTÉ PAR SP_TG</span>
-                       </div>
+                  <div className="absolute inset-x-2 top-8 bottom-8 bg-[#150404] border border-red-900/50 rounded-2xl z-50 flex flex-col justify-between p-3.5 shadow-2xl animate-fade-in text-slate-100 overflow-y-auto scrollbar-none text-left">
+                    <div className="flex items-center justify-between border-b border-red-900/20 pb-2">
+                      <div className="flex items-center gap-1.5 text-red-400">
+                        <ShieldAlert className="w-4 h-4 shrink-0" />
+                        <span className="font-mono font-black text-[9.5px] uppercase tracking-wide">
+                          Arnaque Bloquée !
+                        </span>
+                      </div>
+                      
+                      {isGroupSource ? (
+                        <span className="bg-[#128C7E]/20 text-[#25D366] text-[8px] font-mono font-bold tracking-wider px-2 py-0.5 rounded border border-[#128C7E]/40 uppercase flex items-center gap-1">
+                          <Mail className="w-3 h-3 text-[#25D366]" /> Message WhatsApp
+                        </span>
+                      ) : (
+                        <span className="bg-slate-800/80 text-slate-200 text-[8px] font-mono font-bold tracking-wider px-2 py-0.5 rounded border border-slate-700/50 uppercase flex items-center gap-1">
+                          <Mail className="w-3 h-3 text-slate-300" /> Message SMS
+                        </span>
+                      )}
                     </div>
 
-                    <div className="flex-1 flex flex-col justify-center my-2 space-y-2.5">
-                       <div className="bg-white/5 border border-white/5 p-2 rounded-lg text-left">
-                          <p className="text-[10px] text-slate-300 font-sans leading-relaxed">{overlayAlertMessage}</p>
-                       </div>
+                    <div className="flex-1 flex flex-col justify-between my-2 space-y-2">
+                      <div className="pt-1 select-text">
+                        <div className="text-[11px] font-bold text-red-200 leading-snug flex items-center gap-1">
+                          {isGroupSource && !containsKnownSignature ? (
+                            <>
+                              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" /> Message suspect à vérifier
+                            </>
+                          ) : isRegisteredContact ? (
+                            <>
+                              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" /> Message suspect venant d&apos;un ami
+                            </>
+                          ) : (
+                            <>
+                              <AlertOctagon className="w-3.5 h-3.5 text-red-400 shrink-0 animate-pulse" /> Attention, tentative d&apos;arnaque !
+                            </>
+                          )}
+                        </div>
+                        <p className="text-[9px] text-red-300/80 leading-normal mt-1">
+                          {isGroupSource && !containsKnownSignature ? (
+                            "Un message suspect a été envoyé dans votre groupe. Prenez garde aux liens."
+                          ) : isRegisteredContact ? (
+                            `Votre contact (${registeredContacts[contactIndex]?.name || activeSender}) vous a envoyé un message dangereux. Son téléphone a peut-être été piraté, ou il a partagé ce piège sans le savoir.`
+                          ) : (
+                            "Une personne inconnue essaie de vous tromper pour vous voler de l'argent."
+                          )}
+                        </p>
+                      </div>
 
-                       <div className="bg-red-500/10 border border-red-500/20 p-2 rounded-lg text-left">
-                          <p className="text-[9px] text-red-300 font-mono font-bold leading-normal">{overlayAlertAction}</p>
-                       </div>
+                      <div className="bg-black/30 border border-white/5 p-2 rounded-lg space-y-1">
+                        <span className="text-[7.5px] text-slate-400 font-mono block uppercase">
+                          Message suspect intercepté :
+                        </span>
+                        <p className="text-[9px] text-slate-200 leading-relaxed italic">
+                          &quot;{activeMessageText}&quot;
+                        </p>
+                      </div>
 
-                       <div className="border-t border-white/5 pt-2">
-                          <span className="text-[7.5px] font-mono text-slate-500 block uppercase font-bold">Texte Intercepté :</span>
-                          <p className="text-[8px] text-slate-400 italic line-clamp-2 mt-0.5 leading-tight">"{activeMessageText}"</p>
-                       </div>
+                      <div className="bg-red-950/15 border border-red-900/30 p-2.5 rounded-lg space-y-2 text-left">
+                        <span className="text-[8px] text-red-300 uppercase font-black tracking-wider block">
+                          Ce que vous devez faire :
+                        </span>
+                        <ul className="text-[8.5px] text-red-100/90 space-y-1.5 leading-normal">
+                          <li className="flex items-start gap-1.5">
+                            <span className="text-red-500 font-bold shrink-0">❌</span>
+                            <span><strong>Ne cliquez sur aucun lien bleu</strong> dans ce message.</span>
+                          </li>
+                          <li className="flex items-start gap-1.5">
+                            <span className="text-red-500 font-bold shrink-0">❌</span>
+                            <span><strong>N'envoyez jamais d'argent</strong>, ni de transfert Flooz ou Tmoney.</span>
+                          </li>
+                          <li className="flex items-start gap-1.5">
+                            <span className="text-red-500 font-bold shrink-0">❌</span>
+                            <span><strong>Faites attention :</strong> ne donnez aucun code secret reçu par SMS.</span>
+                          </li>
+                          {isGroupSource ? (
+                            <li className="flex items-start gap-1.5 border-t border-red-900/10 pt-1.5 mt-1.5">
+                              <span className="text-emerald-400 font-bold shrink-0">💡</span>
+                              <span>Quittez le groupe si des inconnus y partagent souvent des cadeaux ou des gains faciles.</span>
+                            </li>
+                          ) : isRegisteredContact ? (
+                            <li className="flex items-start gap-1.5 border-t border-red-900/10 pt-1.5 mt-1.5">
+                              <span className="text-emerald-400 font-bold shrink-0">📞</span>
+                              <span className="text-emerald-200 font-bold">Appelez directement votre proche au téléphone pour l'avertir et vérifier.</span>
+                            </li>
+                          ) : (
+                            <li className="flex items-start gap-1.5 border-t border-red-900/10 pt-1.5 mt-1.5">
+                              <span className="text-red-400 font-bold shrink-0">🚫</span>
+                              <span className="text-red-200 font-bold">Bloquez ce numéro immédiatement pour ne plus recevoir de messages de sa part.</span>
+                            </li>
+                          )}
+                        </ul>
+                      </div>
                     </div>
 
-                    <div className="text-[7.5px] font-mono text-center text-emerald-400 bg-emerald-500/10 rounded py-1 mb-2 font-bold flex items-center justify-center gap-1">
-                      <CheckCircle className="w-2.5 h-2.5 text-emerald-400" /> TRANSMIS AU SOC DE LOMÉ EN DIRECT
+                    <div className="pt-2">
+                      <button
+                        onClick={handleAcknowledgeOverlayAlert}
+                        className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 transition-colors text-white font-sans text-[9px] font-black uppercase tracking-wider rounded-xl cursor-pointer text-center flex items-center justify-center gap-1 shadow-lg shadow-emerald-950/20"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        Compris, supprimer la menace
+                      </button>
+                      <p className="text-[6.8px] text-center text-slate-500 font-mono tracking-wide uppercase mt-2">
+                        🛡️ Protégé par SP_TG • Sécurité Nationale du Togo
+                      </p>
                     </div>
-
-                    <button
-                      onClick={handleAcknowledgeOverlayAlert}
-                      className="w-full py-2 bg-red-600 hover:bg-red-700 transition-colors text-white font-mono text-[9px] font-bold uppercase tracking-wider rounded-xl cursor-pointer shadow-lg active:scale-95"
-                    >
-                      ✓ VALIDER ET FERMER L&apos;ALERTE
-                    </button>
                   </div>
                 )}
 
@@ -1045,7 +1341,7 @@ export default function AgentSupervisionTab({
                           <p className="text-[8.2px] text-slate-350 line-clamp-2 mt-1 leading-snug">
                             &quot;{activeMessageText}&quot;
                           </p>
-                          <div className="text-[7.2px] font-mono text-amber-500 font-black mt-2 text-right border-t border-white/5 pt-1 uppercase tracking-wide">
+                          <div className="text-[7.2px] font-mono text-emerald-400 font-black mt-2 text-right border-t border-white/5 pt-1 uppercase tracking-wide">
                             👉 Cliquez pour déverrouiller et sécuriser
                           </div>
                         </div>
@@ -1066,311 +1362,614 @@ export default function AgentSupervisionTab({
                   </div>
                 ) : (
                   <>
-                    {phoneState === "dashboard" && (
-                      <div className="flex-1 flex flex-col justify-between z-10 pt-3 animate-fade-in text-left">
-                        
-                        {/* Header bar styled exactly like activity_main.xml */}
-                        <div className="flex items-start gap-2.5 pb-2 border-b border-white/5">
-                          {/* Outlined capsule representing the uniform brand logo */}
-                          <div className="w-12 h-7 rounded-full bg-[#00C896] p-[1.5px] shrink-0 self-center">
-                            <div className="w-full h-full rounded-full bg-[#050B1D] flex items-center justify-center gap-0.5">
-                              <span className="text-[#00C896] font-black text-[10px]">S</span>
-                              <span className="text-white font-black text-[10px]">P</span>
-                            </div>
+                    {/* TRANSIENT STATES (RECEIVING/SCANNING & QUARANTINE/INTERCEPT ALERT) */}
+                    {phoneState === "receiving" && (
+                      <div className="flex-1 flex flex-col justify-between z-10 pt-6 animate-pulse">
+                        <div className="text-center my-auto space-y-3">
+                          <div className="w-12 h-12 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin mx-auto flex items-center justify-center">
+                            <Cpu className="w-5 h-5 text-emerald-500" />
                           </div>
-
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1">
-                              <span className="text-[#00C896] font-black text-[11px] tracking-wide">SP</span>
-                              <span className="text-white font-black text-[11px] tracking-wide">SENTINEL</span>
-                            </div>
-                            <p className="text-[7.5px] text-slate-400 font-sans leading-none mt-0.5 truncate">
-                              Votre gardien contre les arnaques Floov et Tmoney
-                            </p>
-                            <p className="text-[8px] font-bold text-emerald-400 tracking-wide mt-1">
-                              🟢 PROTECTEUR ACTIF ET SÛRE
-                            </p>
-                          </div>
-
-                          {/* Small action version or icon */}
-                          <div className="p-1 rounded bg-[#00C896]/10 text-[#00C896] self-center shrink-0">
-                            <Shield className="w-3.5 h-3.5" />
-                          </div>
-                        </div>
-
-                    {/* STATUS GAUGE SIMULATING ACTIVITY */}
-                    <div className="my-auto py-2 flex flex-col items-center justify-center text-center">
-                      <div className="relative w-24 h-24 flex items-center justify-center mb-1.5">
-                        {/* Outer rotating pulse ring */}
-                        <div className={`absolute inset-0 rounded-full border border-dashed animate-spin duration-15000 ${isShieldActive ? "border-[#00C896]/30" : "border-slate-800"}`}></div>
-                        
-                        {/* Inner glowing circle */}
-                        <div className={`absolute w-20 h-20 rounded-full flex flex-col items-center justify-center shadow-lg transition-all duration-500 bg-[#00C896]/5 border border-[#00C896]/30 shadow-[#00C896]/5`}>
-                          <Shield className="w-7 h-7 text-[#00C896]" />
-                          <span className="text-[7.5px] font-mono tracking-widest uppercase font-bold text-slate-400 mt-1">
-                            Protector
-                          </span>
+                          <h4 className="text-[10px] font-mono font-bold text-emerald-500 uppercase tracking-widest text-center">
+                            RECHERCHE DE PIÈGES...
+                          </h4>
+                          <p className="text-[9px] text-slate-400 font-sans max-w-[180px] mx-auto leading-normal">
+                            Votre garde du corps examine s&apos;il s&apos;agit d&apos;une tentative d&apos;arnaque ou d&apos;un vol d&apos;argent.
+                          </p>
                         </div>
                       </div>
+                    )}
 
-                      <h4 className="text-[10px] font-mono font-black uppercase text-center tracking-wider text-[#00C896]">
-                        PROTÉGÉ EN TEMPS RÉEL
-                      </h4>
-                    </div>
-
-                    {/* METRICS ROW MATCHING activity_main.xml CARD SHAPES */}
-                    <div className="grid grid-cols-2 gap-2 pb-2">
-                      <div className="bg-[#121A2F]/90 border border-white/5 p-2 rounded-2xl text-center shadow-md">
-                        <span className="text-[7px] font-mono font-bold text-slate-400 block tracking-wider uppercase">PIÈGES ÉVITÉS</span>
-                        <strong className="text-base font-mono text-[#EF4444] block mt-0.5">{mobileSignals.length > 0 ? mobileSignals.length : simLocalBlockedCount}</strong>
-                      </div>
-                      <div className="bg-[#121A2F]/90 border border-white/5 p-2 rounded-2xl text-center shadow-md">
-                        <span className="text-[7px] font-mono font-bold text-[#94A3B8] block tracking-wider uppercase">ARNAQUES CONNUES</span>
-                        <strong className="text-base font-mono text-[#00C896] block mt-0.5">{threats.length > 0 ? threats.length : 148}</strong>
-                      </div>
-                    </div>
-
-                    {/* BIG SIMPLIFIED SECURITY STATUS BUTTON MATCHING activity_main.xml */}
-                    <div className="space-y-1.5">
-                      <button 
-                        onClick={() => {
-                          setIsShieldActive(!isShieldActive);
-                          if (!isShieldActive) {
-                            setSimLocalBlockedCount(prev => prev + 1);
-                          }
-                        }}
-                        className={`w-full py-2 rounded-2xl font-mono text-[9px] font-black uppercase tracking-wider text-white shadow-lg active:scale-95 transition-all text-center flex flex-col justify-center items-center cursor-pointer ${isShieldActive ? "bg-[#10B981] hover:bg-[#059669]" : "bg-[#EF4444] hover:bg-[#DC2626]"}`}
-                      >
-                        {isShieldActive ? (
-                          <>
-                            <span>🟢 PROTECTION ACTIVÉE ET SÛRE</span>
-                            <span className="text-[6.5px] font-semibold opacity-80">(Appuyez pour vérifier à nouveau)</span>
-                          </>
-                        ) : (
-                          <>
-                            <span>🔴 SÉCURITÉ INACTIVE</span>
-                            <span className="text-[6.5px] font-semibold opacity-80">(Touchez pour activer)</span>
-                          </>
-                        )}
-                      </button>
-
-                      <p className="text-[6.8px] text-slate-500 font-sans leading-none text-center">
-                        * Fonctionne en toute sécurité sans connexion internet.
-                      </p>
-
-                      <p className="text-[8px] text-slate-500 font-sans text-center mt-1 pt-1 border-t border-white/5">
-                        Dernier contrôle de sécurité effectué : Aujourd&apos;hui
-                      </p>
-                    </div>
-
-                  </div>
-                )}
-
-                {phoneState === "receiving" && (
-                  <div className="flex-1 flex flex-col justify-between z-10 pt-6 animate-pulse">
-                    <div className="text-center my-auto space-y-3">
-                      <div className="w-12 h-12 rounded-full border-2 border-amber-500 border-t-transparent animate-spin mx-auto flex items-center justify-center">
-                        <Cpu className="w-5 h-5 text-amber-500" />
-                      </div>
-                      <h4 className="text-[10px] font-mono font-bold text-amber-500 uppercase tracking-widest text-center">
-                        RECHERCHE DE PIÈGES EN COURS...
-                      </h4>
-                      <p className="text-[9px] text-slate-400 font-sans max-w-[180px] mx-auto leading-normal">
-                        Votre garde du corps examine attentivement s&apos;il s&apos;agit d&apos;une tentative de vol ou d&apos;un mensonge.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {phoneState === "quarantine" && (
-                  <div className="flex-1 flex flex-col justify-between z-10 pt-4 animate-fade-in text-slate-200">
-                    
-                    {/* Specialized view for Mild Group Warning to keep it soft and less scary */}
-                    {isGroupSource && !containsKnownSignature ? (
-                      <div className="flex flex-col justify-between flex-1">
-                        
-                        {/* Soft Yellow warning Header */}
-                        <div className="bg-amber-500/10 border border-amber-500/25 p-2 rounded-xl flex items-center gap-2">
-                          <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 animate-pulse" />
-                          <div className="leading-tight text-[10px]">
-                            <h4 className="font-bold text-amber-400 font-mono uppercase text-[9px] tracking-wide">
-                              💬 GROUPE SUSPECT (Vérification)
-                            </h4>
-                            <span className="text-[7.5px] text-slate-400 block font-mono">
-                              Vérification par précaution
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Description */}
-                        <div className="bg-slate-950 border border-white/5 p-2.5 rounded-xl mt-2 space-y-1 rounded-b-none flex-1 flex flex-col justify-between">
-                          <div>
-                            <span className="text-[8px] font-mono text-slate-400 block border-b border-white/5 pb-1">
-                              Dans le groupe : <strong className="text-white font-bold">{groupName}</strong>
-                            </span>
-                            <span className="text-[7.5px] text-slate-500 block font-mono mt-0.5">
-                              Expéditeur : {activeSender}
-                            </span>
-                            <p className="mt-1 text-[8.2px] text-slate-300 leading-tight italic bg-white/5 p-2 rounded">
-                              &quot;{activeMessageText}&quot;
-                            </p>
-                          </div>
-
-                          <div className="bg-slate-900/50 p-2 rounded border border-white/5 space-y-1">
-                            <h5 className="text-[8.5px] font-bold text-amber-400 font-mono">
-                              💡 EST-CE UNE FAUSSE ALERTE ?
-                            </h5>
-                            <p className="text-[7.8px] text-slate-400 leading-tight">
-                              Si vous faites confiance à 100% à ce groupe pour de vrai, mettez-le dans votre Liste Verte. Le garde-corps n&apos;analysera plus ses messages pour éviter de vous déranger !
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Interactive Action Choice for user */}
-                        <div className="space-y-1.5 mt-2 bg-slate-950/40 border border-white/5 p-2.5 rounded-b-xl border-t-0">
-                          <button
-                            onClick={handleTrustGroup}
-                            className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 transition-colors text-white font-mono text-[8.5px] font-bold uppercase tracking-wide rounded-lg cursor-pointer flex items-center justify-center gap-1"
-                          >
-                            <CheckCircle className="w-3 h-3" />
-                            💚 Faire confiance à ce groupe (Liste Verte)
-                          </button>
+                    {phoneState === "quarantine" && (
+                      <div className="flex-1 flex flex-col justify-between z-10 pt-3 animate-fade-in text-slate-200">
+                        <div className="flex flex-col flex-1 bg-[#150404] border border-red-900/40 rounded-2xl p-3 shadow-2xl justify-between overflow-y-auto max-h-[355px] scrollbar-none text-left">
                           
-                          <button
-                            onClick={handleReportGroup}
-                            className="w-full py-1 bg-red-650 hover:bg-red-700 text-white font-mono text-[8px] font-bold uppercase tracking-wide rounded-lg cursor-pointer transition-colors"
-                          >
-                            🚫 Signaler & Bloquer ce piège
-                          </button>
-                        </div>
-
-                      </div>
-                    ) : (
-                      // STANDARD OR CRITICAL SCAM BLOCK SCREEN
-                      <div className="flex flex-col justify-between flex-1">
-                        
-                        {/* Nuanced Header based on whether sender is registered or unknown */}
-                        {isRegisteredContact ? (
-                          /* COMPASSIONATE WARNING FOR CONFIRMED FRAUD SENT BY A KNOWN CONTACT */
-                          <div className="p-2 rounded-xl flex items-center gap-2 bg-amber-500/15 border border-amber-500/35">
-                            <ShieldAlert className="w-5 h-5 text-amber-500 shrink-0" />
-                            <div className="leading-tight text-[10px]">
-                              <h4 className="font-bold text-amber-500 font-mono text-[9px] tracking-wide uppercase">
-                                ⚠️ MESSAGE SUSPECT • PROCHE ABUSÉ ?
-                              </h4>
-                              <span className="text-[7.5px] text-slate-400 block font-mono">
-                                Menace relayée par un de vos contacts
-                              </span>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between border-b border-red-900/20 pb-2">
+                              <div className="flex items-center gap-1.5 text-red-400">
+                                <ShieldAlert className="w-4 h-4 shrink-0" />
+                                <span className="font-mono font-black text-[9.5px] uppercase tracking-wide">
+                                  Arnaque Bloquée
+                                </span>
+                              </div>
+                              
+                              {isGroupSource ? (
+                                <span className="bg-[#128C7E]/20 text-[#25D366] text-[8px] font-mono font-bold tracking-wider px-2 py-0.5 rounded border border-[#128C7E]/40 uppercase">
+                                  WhatsApp
+                                </span>
+                              ) : (
+                                <span className="bg-slate-800/80 text-slate-200 text-[8px] font-mono font-bold tracking-wider px-2 py-0.5 rounded border border-slate-700/50 uppercase">
+                                  SMS
+                                </span>
+                              )}
                             </div>
-                          </div>
-                        ) : (
-                          /* SEVERE ALARM FOR CONFIRMED FRAUD SENT BY AN UNKNOWN SENDER */
-                          <div className="p-2 rounded-xl flex items-center gap-2 bg-red-500/25 border border-red-500/40">
-                            <ShieldAlert className="w-5 h-5 text-red-500 shrink-0 animate-bounce" />
-                            <div className="leading-tight text-[10px]">
-                              <h4 className="font-bold text-red-400 font-mono text-[9px] tracking-wide uppercase">
-                                🚨 DANGER ARRÊTÉ • ALERTE ABSOLUE
-                              </h4>
-                              <span className="text-[7.5px] text-slate-450 block font-mono">
-                                Numéro inconnu répertorié par Lomé Sûre
-                              </span>
-                            </div>
-                          </div>
-                        )}
 
-                        {/* SUSPECT MESSAGE INFO CONTAINER */}
-                        <div className="bg-slate-950 border border-white/5 p-2.5 rounded-xl mt-2.5 space-y-2 flex-1 flex flex-col justify-between">
-                          <div>
-                            <div className="flex items-center justify-between text-[7.8px] font-mono border-b border-white/5 pb-1">
-                              <span className="text-slate-400">
+                            <div className="pt-1.5">
+                              <h4 className="text-[11px] font-bold text-red-200 leading-snug font-sans">
+                                {isGroupSource && !containsKnownSignature ? (
+                                  "Message suspect à vérifier"
+                                ) : isRegisteredContact ? (
+                                  "Message suspect venant d'un ami"
+                                ) : (
+                                  "Attention, tentative d'arnaque !"
+                                )}
+                              </h4>
+                              <p className="text-[9px] text-red-300/80 leading-normal mt-1 font-sans">
+                                {isGroupSource && !containsKnownSignature ? (
+                                  "Un message suspect a été détecté dans le groupe. Prenez garde aux liens."
+                                ) : isRegisteredContact ? (
+                                  `Votre contact (${registeredContacts[contactIndex]?.name || activeSender}) vous a partagé un contenu douteux sans le savoir.`
+                                ) : (
+                                  "Un numéro non enregistré tente de vous soutirer de l'argent ou des codes."
+                                )}
+                              </p>
+                            </div>
+
+                            <div className="bg-black/30 border border-white/5 p-2 rounded-lg space-y-1">
+                              <span className="text-[7.5px] text-slate-400 font-mono block uppercase">
                                 {isGroupSource 
-                                  ? `Groupe : ${groupName}` 
-                                  : isRegisteredContact
-                                    ? `Contact enregistré : ${registeredContacts[contactIndex]?.name || activeSender}`
-                                    : `De (Inconnu) : ${activeSender}`
+                                  ? `Groupe : ${groupName} • Expéditeur : ${activeSender}`
+                                  : `Expéditeur : ${isRegisteredContact ? (registeredContacts[contactIndex]?.name || activeSender) : activeSender}`
                                 }
                               </span>
-                              <span className="text-red-400 uppercase font-bold tracking-wider text-[7.5px]">Piège Intercepté</span>
+                              <p className="text-[9px] text-slate-200 leading-relaxed italic font-sans">
+                                &quot;{activeMessageText}&quot;
+                              </p>
                             </div>
-                            <p className="mt-1.5 text-[8.2px] font-sans text-amber-100 leading-snug italic bg-amber-500/5 p-2 rounded border border-amber-500/10 max-h-[85px] overflow-y-auto">
-                              &quot;{activeMessageText}&quot;
-                            </p>
+
+                            <div className="bg-red-950/15 border border-red-900/30 p-2 rounded-lg space-y-1.5 font-sans">
+                              <span className="text-[8px] text-red-300 uppercase font-black tracking-wider block">
+                                Actions recommandées :
+                              </span>
+                              <ul className="text-[8px] text-red-100/90 space-y-1 leading-normal list-inside list-disc">
+                                <li>Ne cliquez pas sur les liens.</li>
+                                <li>N&apos;envoyez jamais d&apos;argent ni de code.</li>
+                                <li>Bloquez et signalez le numéro.</li>
+                              </ul>
+                            </div>
                           </div>
 
-                          {/* DYNAMIC RULES & SOCIAL ADVISORY ACCORDING TO SENDER RELIABILITY */}
-                          {isRegisteredContact ? (
-                            <div className="bg-amber-950/20 p-2 border border-amber-500/15 rounded-lg space-y-1">
-                              <span className="text-[8.5px] font-mono font-bold text-amber-400 uppercase tracking-wider block">
-                                ℹ️ CONSEIL IMPORTANT ET BIENVEILLANT :
-                              </span>
-                              <div className="text-[7.8px] text-slate-300 font-sans space-y-1 leading-normal">
-                                <p>
-                                  Le numéro de votre proche <strong>{registeredContacts[contactIndex]?.name || activeSender}</strong> partage avec vous un message qui a été détecté comme utilisé par de nombreux attaquants et déclaré comme fraude auprès du poste central (SOC).
-                                </p>
-                                <p className="text-amber-300">
-                                  <strong>Ne blâmez pas l&apos;auteur !</strong> Votre proche n&apos;est probablement pas l&apos;attaquant : il a pu être lui-même piraté ou a simplement transféré ce piège de bonne foi. Ne lui en voulez pas.
-                                </p>
-                                <p className="font-bold">
-                                  👉 Veuillez simplement supprimer ce message, ne pas cliquer, et lui passer un appel téléphonique direct pour l&apos;avertir gentiment.
+                          <div className="pt-3 border-t border-red-900/10 mt-3 space-y-2">
+                            {isGroupSource && !containsKnownSignature ? (
+                              <div className="grid grid-cols-2 gap-1.5 font-sans">
+                                <button
+                                  onClick={handleTrustGroup}
+                                  className="py-1.5 bg-emerald-700 hover:bg-emerald-800 transition-colors text-white text-[8.5px] font-bold uppercase rounded-lg cursor-pointer flex items-center justify-center gap-1"
+                                >
+                                  <CheckCircle className="w-3 h-3" />
+                                  Confiance
+                                </button>
+                                <button
+                                  onClick={handleReportGroup}
+                                  className="py-1.5 bg-red-600 hover:bg-red-700 transition-colors text-white text-[8.5px] font-bold uppercase rounded-lg cursor-pointer flex items-center justify-center gap-1"
+                                >
+                                  Bloquer
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setPhoneState("dashboard")}
+                                className="w-full py-2 bg-[#00C896] hover:bg-emerald-600 transition-colors text-black font-sans text-[9px] font-black uppercase tracking-wider rounded-xl cursor-pointer text-center flex items-center justify-center gap-1 shadow-lg shadow-emerald-950/20"
+                              >
+                                <CheckCircle className="w-3.5 h-3.5" />
+                                Fermer l&apos;alerte
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* MAIN BOTTOM TABBED VIEWS */}
+                    {phoneState === "dashboard" && (
+                      <div className="flex-1 flex flex-col justify-between z-10 pt-2 animate-fade-in text-left overflow-hidden">
+                        
+                        {/* Tab Content Body */}
+                        <div className="flex-1 overflow-y-auto pr-0.5 scrollbar-none pb-2 flex flex-col">
+                          
+                          {/* Tab 1: Accueil */}
+                          {phoneTab === "accueil" && (
+                            <div className="space-y-3 flex-1 flex flex-col justify-between">
+                              {/* Reassuring header with SP SENTINEL branding */}
+                              <div className="flex items-center justify-between pb-1.5 border-b border-white/5">
+                                <div className="flex items-center gap-1.5">
+                                  {/* Outlined capsule representing the uniform brand logo */}
+                                  <div className="w-8 h-4 rounded-full bg-[#10B981] p-[1px] shrink-0">
+                                    <div className="w-full h-full rounded-full bg-[#050B1D] flex items-center justify-center gap-[1px]">
+                                      <span className="text-[#10B981] font-black text-[7px] leading-none">S</span>
+                                      <span className="text-white font-black text-[7px] leading-none">P</span>
+                                    </div>
+                                  </div>
+                                  <span className="text-white font-sans font-black text-[10px] tracking-wider uppercase">SP SENTINEL</span>
+                                </div>
+                                <div className="flex items-center gap-1 bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/20 rounded-full px-1.5 py-0.5 text-[6.5px] font-sans font-extrabold tracking-wider uppercase">
+                                  <span className="w-1 h-1 bg-[#10B981] rounded-full animate-ping"></span>
+                                  Actif
+                                </div>
+                              </div>
+
+                              {/* Big animated spinning wireframe globe */}
+                              <div className="py-2 flex flex-col items-center justify-center text-center my-auto relative">
+                                <div className="relative w-24 h-24 flex items-center justify-center mb-1.5">
+                                  {/* Glow background */}
+                                  <div className="absolute w-16 h-16 rounded-full bg-emerald-500/5 blur-xl pointer-events-none"></div>
+                                  
+                                  {/* Spinning wireframe globe */}
+                                  <svg className="w-20 h-20 text-emerald-400 relative z-10" viewBox="0 0 100 100">
+                                    <style>{`
+                                      @keyframes globe-spin {
+                                        0% { transform: rotate(0deg); }
+                                        100% { transform: rotate(360deg); }
+                                      }
+                                      .animate-globe-custom {
+                                        animation: globe-spin 15s linear infinite;
+                                        transform-origin: 50px 50px;
+                                      }
+                                    `}</style>
+                                    <g className="animate-globe-custom">
+                                      {/* Outer dashed halo boundary */}
+                                      <circle cx="50" cy="50" r="45" stroke="currentColor" strokeWidth="0.8" strokeDasharray="3 3" fill="none" opacity="0.3" />
+                                      {/* Main sphere edge */}
+                                      <circle cx="50" cy="50" r="40" stroke="currentColor" strokeWidth="1.2" fill="none" opacity="0.75" />
+                                      {/* Longitude lines (Vertical Ellipses) */}
+                                      <ellipse cx="50" cy="50" rx="26" ry="40" stroke="currentColor" strokeWidth="0.8" fill="none" opacity="0.5" />
+                                      <ellipse cx="50" cy="50" rx="13" ry="40" stroke="currentColor" strokeWidth="0.8" fill="none" opacity="0.5" />
+                                      <line x1="50" y1="10" x2="50" y2="90" stroke="currentColor" strokeWidth="0.8" opacity="0.4" />
+                                      {/* Latitude lines (Horizontal Ellipses) */}
+                                      <ellipse cx="50" cy="50" rx="40" ry="26" stroke="currentColor" strokeWidth="0.8" fill="none" opacity="0.4" />
+                                      <ellipse cx="50" cy="50" rx="40" ry="13" stroke="currentColor" strokeWidth="0.8" fill="none" opacity="0.4" />
+                                      <line x1="10" y1="50" x2="90" y2="50" stroke="currentColor" strokeWidth="0.8" opacity="0.4" />
+                                      
+                                      {/* Decorative glowing dots representing threat intel locations on grid */}
+                                      <circle cx="50" cy="10" r="1.5" fill="#10B981" />
+                                      <circle cx="50" cy="90" r="1.5" fill="#10B981" />
+                                      <circle cx="24" cy="30" r="2" fill="#EF4444" className="animate-pulse" />
+                                      <circle cx="76" cy="70" r="2" fill="#EF4444" className="animate-pulse" />
+                                      <circle cx="37" cy="63" r="1.5" fill="#10B981" />
+                                      <circle cx="63" cy="37" r="1.5" fill="#10B981" />
+                                      <circle cx="50" cy="50" r="2.5" fill="#10B981" />
+                                    </g>
+                                  </svg>
+                                </div>
+
+                                <h4 className="text-[9px] font-mono font-black uppercase tracking-widest text-[#10B981]">
+                                  PROTECTION GLOBALE ACTIVÉE
+                                </h4>
+                                <p className="text-[7.2px] text-slate-400 font-sans mt-0.5 font-semibold">
+                                  {isOnlineMode ? "Liaison cryptée active • Lomé, Togo" : "Analyse locale active • Autonome"}
                                 </p>
                               </div>
-                            </div>
-                          ) : (
-                            <div className="bg-red-950/25 p-2 border border-red-500/20 rounded-lg space-y-1">
-                              <span className="text-[8.5px] font-mono font-bold text-red-100/90 uppercase tracking-wider block">
-                                🛑 EXPÉDITEUR MALVEILLANT - ACTION DIRECTE :
-                              </span>
-                              <div className="text-[7.8px] text-slate-300 font-sans space-y-1 leading-normal">
-                                <p>
-                                  ⚠️ <strong>Bloquez ce numéro ({activeSender}) :</strong> C&apos;est une tentative claire d&apos;arnaque envoyée par un inconnu de façon malveillante.
-                                </p>
-                                <p>
-                                  ❌ <strong>Supprimez le message :</strong> Ne l&apos;envoyez à personne, ne cliquez sur aucun lien, et n&apos;indiquez aucun mot de passe ni versement d&apos;argent.
-                                </p>
+
+                              {/* Stats / Metrics (3-column layout) */}
+                              <div className="grid grid-cols-3 gap-1 bg-slate-950/60 p-2 border border-white/5 rounded-2xl relative">
+                                <div className="text-center font-sans">
+                                  <span className="text-[6.5px] text-slate-400 block uppercase font-bold tracking-tight">Signatures connues</span>
+                                  <strong className="text-xs font-mono text-emerald-400 block mt-0.5">{threats.length}</strong>
+                                </div>
+                                <div className="text-center border-l border-white/5 font-sans">
+                                  <span className="text-[6.5px] text-slate-400 block uppercase font-bold tracking-tight">Menaces détectées</span>
+                                  <strong className="text-xs font-mono text-red-400 block mt-0.5">{mobileSignals.length > 0 ? mobileSignals.length : simLocalBlockedCount}</strong>
+                                </div>
+                                <div className="text-center border-l border-white/5 font-sans">
+                                  <span className="text-[6.5px] text-slate-400 block uppercase font-bold tracking-tight">Contacts dangereux</span>
+                                  <strong className="text-xs font-mono text-sky-400 block mt-0.5">{scams.length + complaints.length || 54}</strong>
+                                </div>
+                              </div>
+
+                              {/* Connection Check / Server Liaison verification (to check if device has internet / server link) */}
+                              <div className="space-y-1.5 pt-1">
+                                <button 
+                                  onClick={() => {
+                                    setIsCheckingConnection(true);
+                                    setConnectionCheckResult(null);
+                                    addLog("Vérification de la connexion au serveur en cours...", "info");
+                                    setTimeout(() => {
+                                      setIsCheckingConnection(false);
+                                      if (isOnlineMode) {
+                                        setConnectionCheckResult("online");
+                                        addLog("Connexion établie : Le terminal est synchronisé avec le serveur central de l'SOC.", "success");
+                                      } else {
+                                        setConnectionCheckResult("offline");
+                                        addLog("Liaison SOC inactive ou configurée en local. Fonctionnement autonome.", "warn");
+                                      }
+                                    }, 1000);
+                                  }}
+                                  disabled={isCheckingConnection}
+                                  className="w-full py-2 bg-gradient-to-r from-emerald-650 to-[#10B981] hover:from-emerald-700 hover:to-emerald-600 text-white font-sans text-[8.2px] font-extrabold uppercase tracking-widest rounded-xl transition cursor-pointer text-center flex items-center justify-center gap-1 shadow-lg shadow-emerald-500/5 active:scale-95 disabled:opacity-80"
+                                >
+                                  {isCheckingConnection ? (
+                                    <>
+                                      <div className="w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin"></div>
+                                      <span>Vérification en cours...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Radio className="w-3 h-3 text-white animate-pulse" />
+                                      <span>Vérifier la Protection Active</span>
+                                    </>
+                                  )}
+                                </button>
+
+                                {connectionCheckResult === "online" && (
+                                  <div className="bg-emerald-950/30 border border-emerald-500/20 p-2 rounded-xl text-[7.8px] text-emerald-300 flex items-start gap-1.5 animate-fade-in">
+                                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5 animate-bounce" />
+                                    <p className="leading-snug">
+                                      <strong>Liaison active !</strong> L&apos;appareil est correctement connecté en temps réel au serveur central de sécurité (SOC).
+                                    </p>
+                                  </div>
+                                )}
+
+                                {connectionCheckResult === "offline" && (
+                                  <div className="bg-amber-950/30 border border-amber-500/20 p-2 rounded-xl text-[7.8px] text-amber-300 flex items-start gap-1.5 animate-fade-in">
+                                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                                    <p className="leading-snug">
+                                      <strong>Liaison locale active !</strong> Aucune liaison en ligne détectée. La base locale protège de façon autonome.
+                                    </p>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           )}
 
-                          {/* Heuristics reasoning */}
-                          <div className="border-t border-white/5 pt-1">
-                            <span className="text-[7px] font-mono font-bold text-slate-500 uppercase tracking-wider block">Dossier de signalement au SOC :</span>
-                            <p className="text-[7.5px] text-slate-400 leading-normal font-mono mt-0.5">
-                              {simTemplates[selectedTemplate] ? simTemplates[selectedTemplate].heuristics : "Base de signatures de cybermenace de Lomé."}
-                            </p>
-                          </div>
-                        </div>
 
-                        {/* Central remote sync status */}
-                        <div className="bg-[#06B6D4]/5 border border-[#06B6D4]/25 p-1.5 rounded-lg mt-2 flex items-center justify-between text-[7.5px] font-mono">
-                          <span className="text-slate-400 flex items-center gap-1">
-                            <Radio className="w-2.5 h-2.5 text-[#06B6D4] animate-pulse" />
-                            SIGNALÉ AU CENTRE
-                          </span>
-                          {isSimulatingApiCall ? (
-                            <span className="text-amber-400 animate-pulse font-bold">TRANSMISSION...</span>
-                          ) : (
-                            <span className="text-emerald-450 font-bold flex items-center gap-0.5">
-                              <CheckCircle className="w-2.5 h-2.5" /> BLOQUÉ DE SÉCURITÉ !
-                            </span>
+
+                          {/* Tab 3: Signaler */}
+                          {phoneTab === "signaler" && (
+                            <div className="space-y-2 flex-1 flex flex-col text-left">
+                              <div className="pb-1 border-b border-white/5">
+                                <h4 className="text-[10px] font-sans font-black text-slate-200 uppercase tracking-wide">Déclarer un incident</h4>
+                                <p className="text-[7px] text-slate-400 font-sans">Moins d&apos;une minute pour signaler une arnaque</p>
+                              </div>
+
+                              {reportStatus === "success" ? (
+                                <div className="flex-1 flex flex-col justify-center items-center text-center space-y-3 py-6 bg-slate-950/40 p-3 rounded-xl border border-white/5 animate-fade-in font-sans">
+                                  <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                                    <Check className="w-6 h-6 text-[#00C896]" />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <h5 className="text-[9.5px] font-bold text-slate-100">Transmis avec succès</h5>
+                                    <p className="text-[8px] text-slate-300 leading-normal px-2">
+                                      Votre déclaration a bien été reçue par le centre de sécurité central. Merci pour votre esprit citoyen !
+                                    </p>
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      setReportStatus("idle");
+                                      setReportTarget("");
+                                      setReportDetails("");
+                                    }}
+                                    className="px-3 py-1 bg-slate-900 border border-white/5 hover:bg-slate-800 text-slate-200 text-[8px] font-bold uppercase rounded-lg cursor-pointer"
+                                  >
+                                    Nouveau signalement
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="space-y-2 flex-1 overflow-y-auto max-h-[310px] scrollbar-none">
+                                  {/* Select Abuse Type */}
+                                  <div className="space-y-1 font-sans">
+                                    <label className="text-[7.5px] text-slate-400 block uppercase font-bold">Nature du contact suspect :</label>
+                                    <select
+                                      value={reportType}
+                                      onChange={(e) => setReportType(e.target.value as any)}
+                                      className="w-full bg-slate-900 border border-white/10 text-[8.5px] p-1.5 rounded text-white cursor-pointer font-sans"
+                                    >
+                                      <option value="appel">Appel vocal suspect (ex: faux agent)</option>
+                                      <option value="sms">Message SMS suspect (ex: faux gain)</option>
+                                      <option value="whatsapp">Message WhatsApp suspect</option>
+                                      <option value="email">E-mail frauduleux</option>
+                                      <option value="lien">Lien internet suspect</option>
+                                      <option value="site">Faux site internet</option>
+                                      <option value="compte">Faux compte ou profil</option>
+                                      <option value="autre">Autre arnaque</option>
+                                    </select>
+                                  </div>
+
+                                  {/* target phone or link */}
+                                  <div className="space-y-1 font-sans">
+                                    <label className="text-[7.5px] text-slate-400 block uppercase font-bold">Numéro ou adresse suspecte :</label>
+                                    <input
+                                      type="text"
+                                      value={reportTarget}
+                                      onChange={(e) => setReportTarget(e.target.value)}
+                                      placeholder="Ex: +228 92 88 12 34 ou lien suspect"
+                                      className="w-full bg-slate-900 border border-white/10 text-[9px] p-1.5 rounded text-white font-mono focus:outline-none focus:border-emerald-500"
+                                    />
+                                  </div>
+
+                                  {/* description */}
+                                  <div className="space-y-1 font-sans">
+                                    <label className="text-[7.5px] text-slate-400 block uppercase font-bold">Détails (Que s&apos;est-il passé ?) :</label>
+                                    <textarea
+                                      rows={2}
+                                      value={reportDetails}
+                                      onChange={(e) => setReportDetails(e.target.value)}
+                                      placeholder="Ex: Il m'a demandé de lui envoyer mon code secret Flooz..."
+                                      className="w-full bg-slate-900 border border-white/10 text-[8.5px] p-1.5 rounded text-slate-200 resize-none leading-normal focus:outline-none focus:border-emerald-500"
+                                    />
+                                  </div>
+
+                                  <button
+                                    onClick={async () => {
+                                      if (!reportTarget.trim()) return;
+                                      setReportStatus("submitting");
+                                      try {
+                                        const response = await fetch("/api/complaints", {
+                                          headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({
+                                            phoneNumber: reportTarget,
+                                            category: reportType === "appel" ? "Appel suspect" : reportType === "sms" ? "SMS suspect" : "Signalement citoyen",
+                                            description: reportDetails,
+                                            agentId: "CITIZEN_MOBILE",
+                                            agentName: userName
+                                          }),
+                                          method: "POST"
+                                        });
+                                        if (response.ok) {
+                                          setReportStatus("success");
+                                          setLocalHistory(prev => [
+                                            {
+                                              id: `hist-${Date.now()}`,
+                                              type: "signalement",
+                                              title: `Signalement d'arnaque`,
+                                              details: `${reportType.toUpperCase()} : ${reportTarget}`,
+                                              time: "À l'instant",
+                                              status: "transmis"
+                                            },
+                                            ...prev
+                                          ]);
+                                          addLog(`Signalement citoyen transmis : ${reportTarget}`, "success");
+                                          onRefreshData?.();
+                                        } else {
+                                          setReportStatus("error");
+                                        }
+                                      } catch (e) {
+                                        setReportStatus("error");
+                                      }
+                                    }}
+                                    disabled={reportStatus === "submitting" || !reportTarget.trim()}
+                                    className="w-full py-2 mt-1 bg-red-600 hover:bg-red-700 disabled:bg-slate-800 disabled:text-slate-500 text-white font-sans text-[8.5px] font-extrabold uppercase tracking-wide rounded-lg cursor-pointer transition flex items-center justify-center gap-1 shadow-md shadow-red-500/10"
+                                  >
+                                    {reportStatus === "submitting" ? "Transmission..." : "Transmettre au SOC"}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           )}
+
+                          {/* Tab 4: Historique */}
+                          {phoneTab === "historique" && (
+                            <div className="space-y-2 flex-1 flex flex-col text-left">
+                              <div className="pb-1 border-b border-white/5 flex justify-between items-center font-sans">
+                                <div>
+                                  <h4 className="text-[10px] font-sans font-black text-slate-200 uppercase tracking-wide">Journal de protection</h4>
+                                  <p className="text-[7px] text-slate-400 font-sans">Historique des analyses et blocages</p>
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    setLocalHistory([]);
+                                    addLog("Historique de l'application vidé.", "info");
+                                  }}
+                                  className="text-[7px] text-slate-500 hover:text-slate-300 uppercase font-bold cursor-pointer"
+                                >
+                                  Effacer
+                                </button>
+                              </div>
+
+                              <div className="flex-1 overflow-y-auto max-h-[305px] scrollbar-none space-y-1.5 pr-0.5">
+                                {localHistory.length === 0 ? (
+                                  <div className="text-center py-10 text-slate-500 text-[8px] font-sans">
+                                    Aucune action récente enregistrée. Votre historique est vide.
+                                  </div>
+                                ) : (
+                                  localHistory.map((hist) => (
+                                    <div key={hist.id} className="bg-slate-950/40 border border-white/5 p-2 rounded-xl text-[8.2px] leading-snug flex items-start gap-2">
+                                      <div className="shrink-0 mt-0.5">
+                                        {hist.status === "danger" && <ShieldAlert className="w-3.5 h-3.5 text-red-400 animate-pulse" />}
+                                        {hist.status === "sûr" && <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />}
+                                        {hist.status === "transmis" && <FileText className="w-3.5 h-3.5 text-blue-400" />}
+                                      </div>
+                                      <div className="flex-1 min-w-0 font-sans">
+                                        <div className="flex items-center justify-between text-[7px] font-mono text-slate-500">
+                                          <span className="uppercase tracking-wide font-bold">{hist.type}</span>
+                                          <span>{hist.time}</span>
+                                        </div>
+                                        <h5 className="font-bold text-slate-200 truncate mt-0.5">{hist.title}</h5>
+                                        <p className="text-slate-400 truncate mt-0.5">{hist.details}</p>
+                                      </div>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Tab 5: Profil */}
+                          {phoneTab === "profil" && (
+                            <div className="space-y-2 flex-1 flex flex-col text-left">
+                              <div className="pb-1 border-b border-white/5">
+                                <h4 className="text-[10px] font-sans font-black text-slate-200 uppercase tracking-wide">Paramètres de liaison</h4>
+                                <p className="text-[7px] text-slate-400 font-sans">Liaison de souveraineté avec le serveur central SOC</p>
+                              </div>
+
+                              <div className="space-y-2.5 flex-1 overflow-y-auto max-h-[305px] scrollbar-none">
+                                {/* Configuration Card matching the user's uploaded layout */}
+                                <div className="bg-[#0b1329]/80 border border-blue-500/10 p-3 rounded-2xl space-y-2.5 shadow-xl relative overflow-hidden">
+                                  <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/5 rounded-full blur-xl pointer-events-none"></div>
+                                  
+                                  <h5 className="text-[9.5px] font-sans font-extrabold text-slate-150 flex items-center gap-1.5 uppercase tracking-wider">
+                                    ⚙️ CONFIGURATION DU SERVEUR SOC
+                                  </h5>
+
+                                  <div className="space-y-1">
+                                    <label className="text-[7.5px] text-slate-400 font-sans block leading-none font-semibold uppercase">
+                                      Adresse URL de connexion au SOC national :
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={serverAddress}
+                                      onChange={(e) => setServerAddress(e.target.value)}
+                                      placeholder="https://sp-sentinel-hq.onrender.com"
+                                      className="w-full bg-[#030712]/90 border border-white/10 text-[8.5px] px-2.5 py-1.5 rounded-lg text-emerald-400 font-mono focus:outline-none focus:border-emerald-500 transition-colors"
+                                    />
+                                  </div>
+
+                                  {/* PROD LIGNE & TEST LOCAL toggles */}
+                                  <div className="grid grid-cols-2 gap-1.5">
+                                    <button
+                                      onClick={() => {
+                                        setIsOnlineMode(true);
+                                        setServerAddress("https://sp-sentinel-hq.onrender.com");
+                                        addLog("Liaison rétablie en PRODUCTION LIGNE avec le SOC central.", "success");
+                                      }}
+                                      className={`py-1.5 rounded-lg text-[8px] font-extrabold uppercase font-sans tracking-wide cursor-pointer transition-all border ${
+                                        isOnlineMode 
+                                          ? "bg-emerald-500 border-emerald-400 text-slate-950 font-black shadow-[0_0_10px_rgba(16,185,129,0.25)]" 
+                                          : "bg-[#030712]/50 border-white/5 text-slate-450 hover:text-slate-300"
+                                      }`}
+                                    >
+                                      PROD LIGNE
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setIsOnlineMode(false);
+                                        addLog("Liaison commutée sur TEST LOCAL autonome.", "warn");
+                                      }}
+                                      className={`py-1.5 rounded-lg text-[8px] font-extrabold uppercase font-sans tracking-wide cursor-pointer transition-all border ${
+                                        !isOnlineMode 
+                                          ? "bg-emerald-500 border-emerald-400 text-slate-950 font-black shadow-[0_0_10px_rgba(16,185,129,0.25)]" 
+                                          : "bg-[#030712]/50 border-white/5 text-slate-450 hover:text-slate-300"
+                                      }`}
+                                    >
+                                      TEST LOCAL
+                                    </button>
+                                  </div>
+
+                                  {/* Action Buttons */}
+                                  <div className="space-y-1.5 pt-1">
+                                    <button
+                                      onClick={() => {
+                                        addLog(`Adresse URL sauvegardée : ${serverAddress}`, "success");
+                                      }}
+                                      className="w-full py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-[8px] rounded-lg uppercase tracking-wider transition-colors shadow-md shadow-blue-950/50 cursor-pointer text-center"
+                                    >
+                                      SAUVEGARDER L&apos;ADRESSE
+                                    </button>
+
+                                    <button
+                                      onClick={() => {
+                                        setIsEditingUser(!isEditingUser);
+                                      }}
+                                      className="w-full py-1.5 bg-slate-900 hover:bg-slate-850 border border-white/10 text-slate-300 font-extrabold text-[8px] rounded-lg uppercase tracking-wider transition-colors cursor-pointer text-center"
+                                    >
+                                      👤 RE-MODIFIER L&apos;ENRÔLEMENT DE L&apos;AGENT
+                                    </button>
+                                  </div>
+
+                                  {/* Enrollment edit form */}
+                                  {isEditingUser && (
+                                    <div className="pt-2 border-t border-white/5 space-y-1.5 animate-fade-in">
+                                      <label className="text-[7.5px] text-slate-400 font-sans block leading-none font-semibold uppercase">
+                                        Identité de l&apos;Agent :
+                                      </label>
+                                      <div className="flex gap-1">
+                                        <input
+                                          type="text"
+                                          value={userName}
+                                          onChange={(e) => setUserName(e.target.value)}
+                                          className="bg-[#030712]/90 border border-white/15 text-[8.5px] px-2 py-1 rounded text-white font-mono flex-1 focus:outline-none focus:border-emerald-500"
+                                        />
+                                        <button
+                                          onClick={() => {
+                                            setIsEditingUser(false);
+                                            addLog(`Identité d'agent configurée : ${userName}`, "success");
+                                          }}
+                                          className="bg-emerald-600 hover:bg-emerald-500 px-2.5 text-[8px] rounded text-white font-black uppercase cursor-pointer transition-colors"
+                                        >
+                                          Valider
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Reassurance and meta */}
+                                <div className="space-y-1 py-1 font-sans">
+                                  <div className="text-[7.5px] text-emerald-400 flex items-center gap-1 justify-center">
+                                    <Check className="w-3 h-3 text-[#00C896] shrink-0" />
+                                    <span>Fonctionne en toute sécurité sans consommer votre connexion internet.</span>
+                                  </div>
+                                  <div className="text-[7px] text-slate-500 text-center">
+                                    Dernière mise à jour : 23/06/2026 16:20:37
+                                  </div>
+                                  <div className="text-[6.5px] text-slate-600 tracking-widest text-center uppercase font-mono pt-1">
+                                    🛡️ SP_TG SENTINEL CODES
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
                         </div>
 
-                        {/* Reset Button */}
-                        <button
-                          onClick={() => setPhoneState("dashboard")}
-                          className="mt-2 w-full py-1.5 bg-[#10B981] hover:bg-emerald-650 transition-colors text-white font-mono text-[8px] font-bold uppercase tracking-widest rounded-lg cursor-pointer"
-                        >
-                          Tout va bien, retourner à l&apos;accueil
-                        </button>
+                        {/* HIGH QUALITY BOTTOM NAVIGATION BAR */}
+                        <div className="grid grid-cols-4 border-t border-white/5 bg-[#030712]/95 pt-1 pb-0.5 -mx-2.5 -mb-2.5 rounded-b-[38px] relative z-20 shrink-0 select-none">
+                          <button
+                            onClick={() => { setPhoneTab("accueil"); setPhoneState("dashboard"); }}
+                            className={`flex flex-col items-center justify-center py-1 transition-colors duration-200 cursor-pointer ${phoneTab === "accueil" ? "text-emerald-400" : "text-slate-500 hover:text-slate-350"}`}
+                          >
+                            <Shield className="w-3.5 h-3.5" />
+                            <span className="text-[7px] font-sans font-semibold mt-0.5 tracking-tighter">Accueil</span>
+                          </button>
+
+                          <button
+                            onClick={() => { setPhoneTab("signaler"); setPhoneState("dashboard"); }}
+                            className={`flex flex-col items-center justify-center py-1 transition-colors duration-200 cursor-pointer ${phoneTab === "signaler" ? "text-emerald-400" : "text-slate-500 hover:text-slate-350"}`}
+                          >
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                            <span className="text-[7px] font-sans font-semibold mt-0.5 tracking-tighter">Signaler</span>
+                          </button>
+
+                          <button
+                            onClick={() => { setPhoneTab("historique"); setPhoneState("dashboard"); }}
+                            className={`flex flex-col items-center justify-center py-1 transition-colors duration-200 cursor-pointer ${phoneTab === "historique" ? "text-emerald-400" : "text-slate-500 hover:text-slate-350"}`}
+                          >
+                            <Clock className="w-3.5 h-3.5" />
+                            <span className="text-[7px] font-sans font-semibold mt-0.5 tracking-tighter">Historique</span>
+                          </button>
+
+                          <button
+                            onClick={() => { setPhoneTab("profil"); setPhoneState("dashboard"); }}
+                            className={`flex flex-col items-center justify-center py-1 transition-colors duration-200 cursor-pointer ${phoneTab === "profil" ? "text-emerald-400" : "text-slate-500 hover:text-slate-350"}`}
+                          >
+                            <Sliders className="w-3.5 h-3.5" />
+                            <span className="text-[7px] font-sans font-semibold mt-0.5 tracking-tighter">Paramètres</span>
+                          </button>
+                        </div>
 
                       </div>
                     )}
 
-                  </div>
+                  </>
                 )}
-
-              </>
-            )}
 
                 {/* Simulated physical Android Home / back button row */}
                 <div className="h-6 w-full flex items-center justify-center gap-6 mt-4 pt-1.5 border-t border-white/5 bg-black/40 text-slate-600">
@@ -1384,13 +1983,16 @@ export default function AgentSupervisionTab({
 
             {/* CONTROL PANEL FOR JURY AND DEVELOPER DEMONSTRATION */}
             <div className="w-[290px] bg-[#121A2F]/80 border border-white/5 rounded-2xl p-4 space-y-3 shadow-md font-mono text-xs shrink-0">
-              <span className="text-[10px] font-bold text-white uppercase tracking-wider block text-center border-b border-white/5 pb-1.5">
-                🎛️ Simulateur d&apos;envoi de messages
-              </span>
+              <div className="flex items-center justify-center gap-1.5 border-b border-white/5 pb-1.5">
+                <Cpu className="w-3.5 h-3.5 text-[#10B981]" />
+                <span className="text-[10px] font-bold text-white uppercase tracking-wider block text-center">
+                  Simulateur d&apos;instructions
+                </span>
+              </div>
 
               {/* État du téléphone (Allumé/Éteint) selector */}
               <div className="space-y-1 bg-[#050B1D]/50 p-2 border border-white/5 rounded-xl">
-                <label className="text-[8px] text-[#38BDF8] block uppercase font-bold tracking-wider mb-1.5">Statut initial du Téléphone :</label>
+                <label className="text-[8px] text-[#10B981] block uppercase font-bold tracking-wider mb-1.5">Statut initial du Téléphone :</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => {
@@ -1398,11 +2000,11 @@ export default function AgentSupervisionTab({
                       setShowInAppOverlayAlert(false);
                       setShowNotification(false);
                       setPhoneState("dashboard");
-                      addLog("📱 Téléphone configuré : Allumé & Actif (En cours d'utilisation).", "info");
+                      addLog("Téléphone configuré : Écran allumé & actif.", "info");
                     }}
-                    className={`py-1.5 px-2 rounded-lg text-[8px] border font-bold font-mono transition duration-200 cursor-pointer text-center select-none ${!phoneLocked ? "bg-[#3B82F6]/20 text-[#38BDF8] border-[#38BDF8]/40" : "bg-transparent text-slate-500 border-white/5 hover:text-slate-350"}`}
+                    className={`py-1.5 px-2 rounded-lg text-[8px] border font-bold font-mono transition duration-200 cursor-pointer text-center select-none ${!phoneLocked ? "bg-[#10B981]/20 text-[#10B981] border-[#10B981]/40" : "bg-transparent text-slate-500 border-white/5 hover:text-slate-350"}`}
                   >
-                    📱 ALLUMÉ
+                    ÉCRAN ALLUMÉ
                   </button>
                   <button
                     onClick={() => {
@@ -1410,157 +2012,383 @@ export default function AgentSupervisionTab({
                       setShowInAppOverlayAlert(false);
                       setShowNotification(false);
                       setPhoneState("dashboard");
-                      addLog("🔒 Téléphone configuré : Éteint / Verrouillé (Mode Veille).", "info");
+                      addLog("Téléphone configuré : Écran verrouillé (veille).", "info");
                     }}
-                    className={`py-1.5 px-2 rounded-lg text-[8px] border font-bold font-mono transition duration-200 cursor-pointer text-center select-none ${phoneLocked ? "bg-amber-500/15 text-amber-400 border-amber-500/35" : "bg-transparent text-slate-500 border-white/5 hover:text-slate-350"}`}
+                    className={`py-1.5 px-2 rounded-lg text-[8px] border font-bold font-mono transition duration-200 cursor-pointer text-center select-none ${phoneLocked ? "bg-slate-800/50 text-slate-200 border-slate-600/50" : "bg-transparent text-slate-500 border-white/5 hover:text-slate-350"}`}
                   >
-                    🔒 VERROUILLÉ
+                    ÉCRAN VERROUILLÉ
                   </button>
                 </div>
               </div>
 
-              {/* Provenance du message / Source selection */}
-              <div className="space-y-1">
-                <label className="text-[9px] text-[#38BDF8] block uppercase font-bold tracking-wider">Qui envoie le message ?</label>
-                <select
-                  value={messageSourceType}
-                  onChange={(e) => {
-                    const val = e.target.value as "unknown" | "contact" | "group";
-                    setMessageSourceType(val);
-                    if (val === "contact") {
-                      // Automatically update customSender with contact's phone
-                      setCustomSender(registeredContacts[contactIndex].phone);
-                    } else if (val === "unknown") {
-                      setCustomSender("+228 99 12 04 85");
-                    }
+              {/* PICKER BETWEEN SMS, CALLSIM, & CITIZEN DECLARATION */}
+              <div className="grid grid-cols-3 gap-1 p-1 bg-[#050B1D] border border-white/5 rounded-xl">
+                <button
+                  onClick={() => setSimMode("sms")}
+                  className={`py-1 rounded-lg text-[8px] font-bold transition flex items-center justify-center gap-1 cursor-pointer select-none ${simMode === "sms" ? "bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/40" : "text-slate-400 hover:text-white bg-transparent border-0"}`}
+                >
+                  SMS / WA
+                </button>
+                <button
+                  onClick={() => setSimMode("call")}
+                  className={`py-1 rounded-lg text-[8px] font-bold transition flex items-center justify-center gap-1 cursor-pointer select-none ${simMode === "call" ? "bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/40" : "text-slate-400 hover:text-white bg-transparent border-0"}`}
+                >
+                  APPEL
+                </button>
+                <button
+                  onClick={() => {
+                    setSimMode("declaration");
+                    setPhoneState("declarations");
+                    setDeclarationStatusMsg("");
                   }}
-                  className="w-full bg-[#0B1020] border border-[#38BDF8]/20 text-[10px] p-1.5 rounded focus:outline-none text-sky-300 font-bold cursor-pointer"
+                  className={`py-1 rounded-lg text-[8px] font-bold transition flex items-center justify-center gap-1 cursor-pointer select-none ${simMode === "declaration" ? "bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/40" : "text-slate-400 hover:text-white bg-transparent border-0"}`}
                 >
-                  <option value="unknown">👤 Un numéro inconnu (Non enregistré)</option>
-                  <option value="contact">👥 Un de mes contacts (Enregistré)</option>
-                  <option value="group">💬 Un message reçu dans un groupe WhatsApp</option>
-                </select>
+                  SIGNALEMENT
+                </button>
               </div>
 
-              {/* Conditional Contact selection */}
-              {messageSourceType === "contact" && (
-                <div className="space-y-1 bg-sky-950/20 p-2 border border-sky-500/10 rounded animate-fade-in">
-                  <label className="text-[8.5px] text-sky-400 block uppercase font-bold">Choisir le contact :</label>
-                  <select
-                    value={contactIndex}
-                    onChange={(e) => {
-                      const idx = parseInt(e.target.value, 10);
-                      setContactIndex(idx);
-                      setCustomSender(registeredContacts[idx].phone);
-                    }}
-                    className="w-full bg-[#0B1020] border border-sky-500/15 text-[10px] p-1 rounded text-white cursor-pointer"
-                  >
-                    {registeredContacts.map((c, i) => (
-                      <option key={i} value={i}>{c.name} ({c.phone})</option>
-                    ))}
-                  </select>
-                  <span className="text-[7.5px] text-slate-450 leading-normal block pt-1">
-                    ℹ️ Vos contacts enregistrés sont réputés sûrs par défaut. L&apos;analyse d&apos;ingénierie sociale (NLP) y est désactivée pour zéro faux-positif. Seul un piratage avéré (détecté par la base de signatures de Lomé) lancera l&apos;alerte.
-                  </span>
-                </div>
-              )}
-
-              {/* Conditional Group Name input */}
-              {messageSourceType === "group" && (
-                <div className="space-y-1 bg-emerald-950/10 p-2 border border-emerald-500/10 rounded animate-fade-in">
-                  <label className="text-[8.5px] text-emerald-400 block uppercase font-bold">Nom du groupe :</label>
-                  <input
-                    type="text"
-                    value={groupName}
-                    onChange={(e) => setGroupName(e.target.value)}
-                    className="w-full bg-[#0B1020] border border-emerald-500/15 text-[10px] p-1.5 rounded text-white font-mono"
-                  />
-                  {trustedGroups.includes(groupName) ? (
-                    <span className="text-[7.8px] text-emerald-400 font-bold block pt-1">
-                      ✅ Ce groupe est dans votre LISTE VERTE. Les alertes de détection de manipulation en direct y sont désactivées.
-                    </span>
-                  ) : (
-                    <span className="text-[7.5px] text-amber-500 block pt-1">
-                      ⚠️ Groupe absent de votre Liste Verte. Vos défenses analyseront d&apos;éventuelles techniques de manipulation en direct pour vous alerter.
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {/* Template dropdown list */}
-              <div className="space-y-1">
-                <label className="text-[9px] text-slate-400 block uppercase">Choisir un SMS / Message type :</label>
-                <select
-                  value={selectedTemplate}
-                  onChange={(e) => setSelectedTemplate(parseInt(e.target.value, 10))}
-                  className="w-full bg-[#0B1020] border border-white/10 text-[10px] p-1.5 rounded focus:outline-none text-slate-300 cursor-pointer text-[9.5px]"
-                >
-                  <option value={-1}>Saisie personnalisée (Écrire vous-même)</option>
-                  {simTemplates.map((tpl, i) => (
-                    <option key={i} value={i}>
-                      {tpl.title} {tpl.isSignature ? "• [🔴 Présent dans la base de données]" : "• [🟡 Non répertorié dans la base]"}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Custom sender number */}
-              <div className="grid grid-cols-1 gap-1.5">
-                {messageSourceType !== "contact" && (
-                  <div>
-                    <label className="text-[9px] text-slate-450 block uppercase">Numéro de l&apos;expéditeur :</label>
-                    <input
-                      type="text"
-                      value={customSender}
+              {simMode === "sms" && (
+                <div className="space-y-3 animate-fade-in text-left">
+                  {/* Provenance du message / Source selection */}
+                  <div className="space-y-1">
+                    <label className="text-[9px] text-[#10B981] block uppercase font-bold tracking-wider">Qui envoie le message ?</label>
+                    <select
+                      value={messageSourceType}
                       onChange={(e) => {
-                        setCustomSender(e.target.value);
-                        setSelectedTemplate(-1);
+                        const val = e.target.value as "unknown" | "contact" | "group";
+                        setMessageSourceType(val);
+                        if (val === "contact") {
+                          // Automatically update customSender with contact's phone
+                          setCustomSender(registeredContacts[contactIndex].phone);
+                        } else if (val === "unknown") {
+                          setCustomSender("+228 99 12 04 85");
+                        }
                       }}
-                      placeholder="+228..."
-                      className="w-full bg-[#0B1020] border border-white/10 text-[10px] p-1 rounded font-mono text-white text-[9.5px]"
-                    />
+                      className="w-full bg-[#0B1020] border border-[#10B981]/20 text-[10px] p-1.5 rounded focus:outline-none text-emerald-350 font-bold cursor-pointer text-white"
+                    >
+                      <option value="unknown" className="bg-[#0B1020]">Numéro inconnu (Non enregistré)</option>
+                      <option value="contact" className="bg-[#0B1020]">Contact enregistré (Répertoire)</option>
+                      <option value="group" className="bg-[#0B1020]">Message de groupe (WhatsApp)</option>
+                    </select>
                   </div>
-                )}
-                
-                {/* Custom text body */}
-                <div>
-                  <label className="text-[9px] text-slate-450 block uppercase">Texte du message à tester :</label>
-                  <textarea
-                    value={customText}
-                    onChange={(e) => {
-                      setCustomText(e.target.value);
-                      setSelectedTemplate(-1);
-                    }}
-                    rows={3}
-                    placeholder="Contenu du SMS à intercepter..."
-                    className="w-full bg-[#0B1020] border border-white/10 text-[10px] p-1.5 rounded resize-none text-slate-200"
-                  />
-                  {containsKnownSignature && (
-                    <div className="text-[8px] text-red-500 font-bold font-mono mt-1 flex items-center gap-1 animate-pulse">
-                      <span className="w-1.5 h-1.5 bg-red-400 rounded-full shrink-0"></span>
-                      DÉTECTÉ : Contient une signature de la base locale de Lomé !
+
+                  {/* Conditional Contact selection */}
+                  {messageSourceType === "contact" && (
+                    <div className="space-y-1 bg-slate-950/40 p-2 border border-white/5 rounded animate-fade-in">
+                      <label className="text-[8.5px] text-slate-300 block uppercase font-bold">Choisir le contact :</label>
+                      <select
+                        value={contactIndex}
+                        onChange={(e) => {
+                          const idx = parseInt(e.target.value, 10);
+                          setContactIndex(idx);
+                          setCustomSender(registeredContacts[idx].phone);
+                        }}
+                        className="w-full bg-[#0B1020] border border-white/10 text-[10px] p-1 rounded text-white cursor-pointer"
+                      >
+                        {registeredContacts.map((c, i) => (
+                          <option key={i} value={i}>{c.name} ({c.phone})</option>
+                        ))}
+                      </select>
+                      <span className="text-[7.5px] text-slate-450 leading-normal block pt-1">
+                        Info : Vos contacts enregistrés sont réputés sûrs par défaut. L&apos;analyse d&apos;ingénierie sociale (NLP) y est suspendue pour écarter les faux-positifs. Seul un piratage avéré (détecté par la base de signatures de Lomé) déclenchera l&apos;alerte.
+                      </span>
                     </div>
                   )}
+
+                  {/* Conditional Group Name input */}
+                  {messageSourceType === "group" && (
+                    <div className="space-y-1 bg-slate-950/40 p-2 border border-white/5 rounded animate-fade-in font-mono">
+                      <label className="text-[8.5px] text-slate-300 block uppercase font-bold font-mono">Nom du groupe :</label>
+                      <input
+                        type="text"
+                        value={groupName}
+                        onChange={(e) => setGroupName(e.target.value)}
+                        className="w-full bg-[#0B1020] border border-white/10 text-[10px] p-1.5 rounded text-white font-mono"
+                      />
+                      {trustedGroups.includes(groupName) ? (
+                        <span className="text-[7.8px] text-emerald-400 font-bold block pt-1">
+                          Approuvé : Ce groupe figure dans votre LISTE VERTE. Les alertes de détection de manipulation en direct y sont désactivées.
+                        </span>
+                      ) : (
+                        <span className="text-[7.5px] text-slate-400 block pt-1 font-sans">
+                          Info : Groupe absent de votre Liste Verte. Vos défenses analyseront d&apos;éventuelles techniques de manipulation en direct pour vous alerter.
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Template dropdown list */}
+                  <div className="space-y-1">
+                    <label className="text-[9px] text-slate-400 block uppercase">Choisir un SMS / Message type :</label>
+                    <select
+                      value={selectedTemplate}
+                      onChange={(e) => setSelectedTemplate(parseInt(e.target.value, 10))}
+                      className="w-full bg-[#0B1020] border border-white/10 text-[10px] p-1.5 rounded focus:outline-none text-slate-300 cursor-pointer text-[9.5px]"
+                    >
+                      <option value={-1}>Saisie personnalisée (Écrire vous-même)</option>
+                      {simTemplates.map((tpl, i) => (
+                        <option key={i} value={i}>
+                          {tpl.title} {tpl.isSignature ? "• [Inscrit en base]" : "• [Hors base - NLP]"}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Custom sender number */}
+                  <div className="grid grid-cols-1 gap-1.5">
+                    {messageSourceType !== "contact" && (
+                      <div>
+                        <label className="text-[9px] text-slate-450 block uppercase">Numéro de l&apos;expéditeur :</label>
+                        <input
+                          type="text"
+                          value={customSender}
+                          onChange={(e) => {
+                            setCustomSender(e.target.value);
+                            setSelectedTemplate(-1);
+                          }}
+                          placeholder="+228..."
+                          className="w-full bg-[#0B1020] border border-white/10 text-[10px] p-1 rounded font-mono text-white text-[9.5px]"
+                        />
+                      </div>
+                    )}
+                    
+                    {/* Custom text body */}
+                    <div>
+                      <label className="text-[9px] text-slate-450 block uppercase">Texte du message à tester :</label>
+                      <textarea
+                        value={customText}
+                        onChange={(e) => {
+                          setCustomText(e.target.value);
+                          setSelectedTemplate(-1);
+                        }}
+                        rows={3}
+                        placeholder="Contenu du SMS à intercepter..."
+                        className="w-full bg-[#0B1020] border border-white/10 text-[10px] p-1.5 rounded resize-none text-slate-200"
+                      />
+                      {containsKnownSignature && (
+                        <div className="text-[8px] text-emerald-400 font-bold font-mono mt-1 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full shrink-0"></span>
+                          Signature connue détectée dans le registre central de Lomé.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ACTION TRIGGER BUTTON */}
+                  <button
+                    onClick={handleSimulateSMS}
+                    disabled={!customText.trim()}
+                    className="w-full py-2.5 bg-[#10B981] hover:bg-[#10B981]/90 disabled:bg-slate-800 disabled:text-slate-500 font-mono text-[9px] font-bold text-black rounded-xl uppercase transition tracking-wider flex items-center justify-center gap-1.5 cursor-pointer shadow-lg active:scale-[98%]"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    Simuler l&apos;envoi du message
+                  </button>
+
+                  <div className="bg-slate-950/40 border border-white/5 p-2 rounded text-[8.5px] text-slate-400 leading-normal">
+                    <span className="font-bold text-slate-200 block mb-1">Comportement de l&apos;interception :</span>
+                    <ul className="text-left list-disc list-inside space-y-1 text-slate-400 font-sans">
+                      <li><strong>Écran allumé :</strong> L&apos;alerte détaillée s&apos;ouvre immédiatement en plein écran pour faire barrière à l&apos;arnaque.</li>
+                      <li><strong>Écran verrouillé :</strong> L&apos;interception attend le déverrouillage de l&apos;appareil pour surgir et sécuriser l&apos;utilisateur.</li>
+                    </ul>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* ACTION TRIGGER BUTTON */}
-              <button
-                onClick={handleSimulateSMS}
-                disabled={!customText.trim()}
-                className="w-full py-2.5 bg-[#EF4444] hover:bg-rose-600 disabled:bg-slate-800 disabled:text-slate-500 font-mono text-[9px] font-bold text-white rounded-xl uppercase transition tracking-wider flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-red-550/10 active:scale-[98%]"
-              >
-                <Send className="w-3.5 h-3.5" />
-                📱 ENVOYER LE MESSAGE SUR LE TÉLÉPHONE
-              </button>
+              {simMode === "call" && (
+                <div className="space-y-3 animate-fade-in text-left">
+                  <div className="space-y-1">
+                    <label className="text-[9px] text-[#10B981] block uppercase font-bold tracking-wider">
+                      Numéro ou Nom de l&apos;Appelant :
+                    </label>
+                    <input
+                      type="text"
+                      value={incomingCallNumber}
+                      onChange={(e) => setIncomingCallNumber(e.target.value)}
+                      placeholder="Ex: +228 92 88 12 34 ou ORabank"
+                      className="w-full bg-[#0B1020] border border-white/10 text-[10px] p-2 rounded font-mono text-white text-[10px]"
+                    />
+                    <div className="flex flex-wrap gap-1 mt-1 font-mono">
+                      <button
+                        onClick={() => setIncomingCallNumber("ORabank")}
+                        className="p-1 px-1.5 bg-[#121A2F] border border-white/5 rounded text-[8px] text-slate-300 hover:text-white cursor-pointer font-sans"
+                      >
+                        ORabank (Service spécial)
+                      </button>
+                      <button
+                        onClick={() => {
+                          const scamNum = scams.length > 0 ? scams[0].phoneNumber : "+228 92 88 12 34";
+                          setIncomingCallNumber(scamNum);
+                        }}
+                        className="p-1 px-1.5 bg-[#121A2F] border border-white/5 rounded text-[8px] text-emerald-400 hover:text-emerald-350 cursor-pointer font-sans"
+                      >
+                        Spammer (Liste Noire SOC)
+                      </button>
+                      <button
+                        onClick={() => setIncomingCallNumber("+228 97 55 11 22")}
+                        className="p-1 px-1.5 bg-[#121A2F] border border-white/5 rounded text-[8px] text-slate-300 hover:text-white cursor-pointer font-sans"
+                      >
+                        Inconnu standard
+                      </button>
+                    </div>
+                  </div>
 
-              <div className="bg-blue-950/20 border border-blue-500/10 p-2 rounded text-[8.5px] text-slate-400 text-center leading-normal">
-                💡 <strong>Priorité de Blocage :</strong>
-                <ul className="text-left list-disc list-inside mt-1 space-y-1 text-slate-400">
-                  <li><strong>Téléphone actif (Allumé) :</strong> L&apos;alerte détaillée s&apos;ouvre <span className="text-red-400 font-bold">instantanément</span> en plein écran pour faire barrière, sans nécessiter aucun clic sur une notification.</li>
-                  <li><strong>Téléphone verrouillé :</strong> L&apos;alerte attend le déverrouillage de l&apos;appareil puis surgit automatiquement à l&apos;écran pour bloquer l&apos;utilisateur avant toute lecture.</li>
-                </ul>
-              </div>
+                  <div className="bg-slate-950/40 border border-white/5 p-2 rounded-xl text-[8.5px] leading-tight space-y-1.5 font-sans">
+                    <span className="text-[7.8px] font-mono text-[#10B981] block uppercase font-bold">
+                      Règles d&apos;évaluation de l&apos;appel :
+                    </span>
+                    <ul className="list-disc list-inside space-y-1 text-slate-350">
+                      <li>
+                        <strong>Chaîne alphabétique (ex: ORabank) :</strong> Traité d&apos;office comme canal institutionnel légitime. Pas d&apos;alerte de fraude.
+                      </li>
+                      <li>
+                        <strong>Présence en Liste Noire :</strong> Détection immédiate avec alerte rouge de blocage.
+                      </li>
+                      <li>
+                        <strong>Numéro non répertorié :</strong> Appel normal acheminé sans perturbation.
+                      </li>
+                    </ul>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      // Check if the number is in scams database
+                      const cleanPhone = incomingCallNumber.trim().replace(/\s+/g, "");
+                      const isListed = scams.some(s => s.phoneNumber.trim().replace(/\s+/g, "") === cleanPhone);
+                      
+                      setIsCallScam(isListed);
+
+                      // Check if alphabetical string
+                      const isAlphabeticalOnly = /^[a-zA-Z\s]+$/.test(incomingCallNumber.trim());
+                      if (isAlphabeticalOnly) {
+                        setCallerName(incomingCallNumber);
+                      } else {
+                        // Check if in registered contacts list
+                        const matchedContact = registeredContacts.find(rc => rc.phone.trim().replace(/\s+/g, "") === cleanPhone);
+                        if (matchedContact) {
+                          setCallerName(matchedContact.name);
+                        } else {
+                          setCallerName("Inconnu");
+                        }
+                      }
+
+                      setVoiceCallState("incoming");
+                      addLog(`Appel simulé de : ${incomingCallNumber} (${isAlphabeticalOnly ? "Service" : isListed ? "Escroc identifié" : "Normal"})`, isListed ? "warn" : "info");
+                    }}
+                    className="w-full py-2.5 bg-[#10B981] hover:bg-[#10B981]/90 font-mono text-[9px] font-bold text-black rounded-xl uppercase transition tracking-wider flex items-center justify-center gap-1 cursor-pointer shadow-lg active:scale-[98%]"
+                  >
+                    Simuler l&apos;appel entrant
+                  </button>
+                </div>
+              )}
+
+              {simMode === "declaration" && (
+                <div className="space-y-3 animate-fade-in text-left">
+                  <div className="bg-slate-950/40 border border-white/5 p-2.5 rounded-xl">
+                    <span className="text-[10px] font-bold text-emerald-400 font-mono block uppercase">
+                      Sécurité Citoyenne : Signaler un abus
+                    </span>
+                    <p className="text-[9px] text-slate-300 leading-normal mt-1">
+                      Signalez un appel suspect pour enrichir en temps réel la base de signatures de Lomé Sûre.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2 bg-[#050B1D]/50 border border-white/5 p-3 rounded-xl">
+                    <div className="space-y-1">
+                      <label className="text-[9px] text-slate-400 block uppercase font-bold">
+                        Numéro suspect :
+                      </label>
+                      <input
+                        type="text"
+                        value={declaringPhone}
+                        onChange={(e) => {
+                          setDeclaringPhone(e.target.value);
+                          setPhoneState("declarations");
+                        }}
+                        placeholder="Ex: +228 92 88 12 34"
+                        className="w-full bg-[#0B1020] border border-white/10 text-[10px] p-2 rounded font-mono text-white focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] text-slate-400 block uppercase font-bold">
+                        Type d&apos;arnaque :
+                      </label>
+                      <select
+                        value={declaringCategory}
+                        onChange={(e) => {
+                          setDeclaringCategory(e.target.value);
+                          setPhoneState("declarations");
+                        }}
+                        className="w-full bg-[#0B1020] border border-white/10 text-[10px] p-1.5 rounded focus:outline-none text-slate-300 cursor-pointer text-white"
+                      >
+                        <option value="Vente pyramidale / Faux gains">Faux gains / Loteries / Cadeaux</option>
+                        <option value="Faux agents Moov / Togocom (Secours)">Faux agents (Tmoney ou Flooz)</option>
+                        <option value="Chantage au téléphone / Menaces">Chantage, pressions ou menaces</option>
+                        <option value="Harcèlement / Intrusions répétées">Harcèlement d&apos;appels</option>
+                        <option value="Faux Positif (Testez la réputation)">Test de réputation ou erreur</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] text-slate-450 block uppercase font-bold">
+                        Description / Preuves de l&apos;appel :
+                      </label>
+                      <textarea
+                        value={declaringDesc}
+                        onChange={(e) => {
+                          setDeclaringDesc(e.target.value);
+                          setPhoneState("declarations");
+                        }}
+                        rows={3}
+                        placeholder="Qu'est-ce que l'appelant vous a demandé ?"
+                        className="w-full bg-[#0B1020] border border-white/10 text-[10px] p-2 rounded text-slate-200 resize-none leading-normal focus:outline-none focus:border-[#10B981]"
+                      />
+                    </div>
+
+                    {declarationStatusMsg && (
+                      <div className="text-[8.5px] font-mono p-2 rounded bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 leading-tight">
+                        {declarationStatusMsg}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      disabled={isSubmittingDeclaration || !declaringPhone.trim()}
+                      onClick={async () => {
+                        setIsSubmittingDeclaration(true);
+                        try {
+                          const response = await fetch("/api/complaints", {
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              phoneNumber: declaringPhone,
+                              category: declaringCategory,
+                              description: declaringDesc,
+                              agentId: agents[0]?.id || "UNKNOWN_AGENT",
+                              agentName: agents[0]?.name || "Citoyen Volontaire"
+                            }),
+                            method: "POST"
+                          });
+                          if (response.ok) {
+                            setDeclarationStatusMsg("Transmis. Traitement en cours par le SOC.");
+                            setDeclaringPhone("+228 99 ");
+                            setDeclaringDesc("");
+                            onRefreshData?.();
+                          } else {
+                            setDeclarationStatusMsg("Erreur lors de la transmission.");
+                          }
+                        } catch (e) {
+                          setDeclarationStatusMsg("Erreur de communication réseau.");
+                        } finally {
+                          setIsSubmittingDeclaration(false);
+                        }
+                      }}
+                      className="w-full py-2 bg-[#10B981] hover:bg-[#10B981]/95 disabled:bg-slate-800 disabled:text-slate-500 font-mono text-[9px] font-bold text-black rounded-xl uppercase transition tracking-wider flex items-center justify-center gap-1 cursor-pointer shadow-lg"
+                    >
+                      {isSubmittingDeclaration ? "Envoi en cours..." : "Soumettre le signalement"}
+                    </button>
+                  </div>
+                </div>
+              )}
 
             </div>
 

@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { dbManager } from "./serveur_dashboard_react/gestionnaire_base_donnees";
 import { analyzeAlertText, analyzeURLWithAI } from "./serveur_dashboard_react/analyseur_ia_gemini";
@@ -11,6 +12,13 @@ async function startServer() {
 
   // Middleware
   app.use(express.json());
+
+  // Ensure scraped_pdfs directory exists and serve PDF files statically
+  const pdfDir = path.join(process.cwd(), "scraped_pdfs");
+  if (!fs.existsSync(pdfDir)) {
+    fs.mkdirSync(pdfDir, { recursive: true });
+  }
+  app.use("/api/pdfs", express.static(pdfDir));
 
   // Log all request routes for clear administration observability
   app.use((req, res, next) => {
@@ -175,6 +183,10 @@ async function startServer() {
         details: t.details || "Signature IoC active"
       }));
 
+      // Envoi d'une liste vide de services légitimes suite à l'introduction du bypass intelligent par SenderID dans l'agent
+      const trustedList: string[] = [];
+      const scamsList = dbManager.getScams().filter(s => s.status === "active").map(s => s.phoneNumber.trim());
+
       res.json({
         success: true,
         sync_timestamp: new Date().toISOString(),
@@ -182,6 +194,8 @@ async function startServer() {
         next_gateway_address: config.gatewayAddress,
         signatures_count: mappedSignatures.length,
         data: mappedSignatures,
+        trusted_services: trustedList,
+        scam_phone_numbers: scamsList,
         recommend_engine_status: "ENABLED"
       });
     } catch (e: any) {
@@ -270,6 +284,153 @@ async function startServer() {
         res.json({ success: true, message: "Signal d'attaque rejeté et supprimé." });
       } else {
         res.status(404).json({ success: false, error: "Signal d'attaque introuvable." });
+      }
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // --- PHONE CALL COMPLAINTS (DECLARATIONS CITOYENNES) APIs ---
+
+  app.get("/api/complaints", (req, res) => {
+    try {
+      const list = dbManager.getComplaints();
+      res.json({ success: true, count: list.length, data: list });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  app.post("/api/complaints", (req, res) => {
+    try {
+      const { agentId, agentName, phoneNumber, category, description } = req.body;
+      if (!phoneNumber || !category) {
+        res.status(400).json({ success: false, error: "Numéro de suspect et catégorie obligatoire." });
+        return;
+      }
+      const item = dbManager.addComplaint({
+        agentId: agentId || "anonymous-citizen",
+        agentName: agentName || "Citoyen Anonyme",
+        phoneNumber,
+        category,
+        description: description || ""
+      });
+      res.status(201).json({ success: true, data: item });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  app.post("/api/complaints/:id/confirm", (req, res) => {
+    try {
+      const { id } = req.params;
+      const complaint = dbManager.getComplaints().find(c => c.id === id);
+      if (!complaint) {
+        res.status(404).json({ success: false, error: "Déclaration introuvable." });
+        return;
+      }
+
+      // Mark complaint as confirmed
+      dbManager.updateComplaintStatus(id, "confirmed_scam");
+
+      // Group complaints for the same phone number to set count
+      const cleanPhone = complaint.phoneNumber.trim().replace(/\s+/g, "");
+      const matchedReports = dbManager.getComplaints().filter(c => c.phoneNumber.trim().replace(/\s+/g, "") === cleanPhone);
+      const reportedCount = matchedReports.length;
+
+      // Add to confirmed scammers database
+      const scamItem = dbManager.addScam({
+        phoneNumber: complaint.phoneNumber,
+        reason: `${complaint.category} : ${complaint.description}`,
+        reportedCount
+      });
+
+      res.json({ success: true, message: "Déclaration confirmée ! Numéro ajouté à la base nationale de blocage des arnaques téléphoniques.", scam: scamItem });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  app.post("/api/complaints/:id/dismiss", (req, res) => {
+    try {
+      const { id } = req.params;
+      const updated = dbManager.updateComplaintStatus(id, "dismissed");
+      if (updated) {
+        res.json({ success: true, message: "Déclaration rejetée (classée faux positive / inoffensive). Aucun blocage activé.", data: updated });
+      } else {
+        res.status(404).json({ success: false, error: "Déclaration introuvable." });
+      }
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  app.delete("/api/complaints/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      const ok = dbManager.deleteComplaint(id);
+      if (ok) {
+        res.json({ success: true, message: "Déclaration supprimée." });
+      } else {
+        res.status(404).json({ success: false, error: "Déclaration introuvable." });
+      }
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // --- CONFIRMED PHONE SCAMMERS REGISTER APIs ---
+
+  app.get("/api/scams", (req, res) => {
+    try {
+      const list = dbManager.getScams();
+      res.json({ success: true, count: list.length, data: list });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  app.post("/api/scams", (req, res) => {
+    try {
+      const { phoneNumber, reason, reportedCount } = req.body;
+      if (!phoneNumber || !reason) {
+        res.status(400).json({ success: false, error: "Numéro de téléphone et motif obligatoires." });
+        return;
+      }
+      const item = dbManager.addScam({
+        phoneNumber,
+        reason,
+        reportedCount: reportedCount || 1
+      });
+      res.status(201).json({ success: true, data: item });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  app.delete("/api/scams/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      const ok = dbManager.deleteScam(id);
+      if (ok) {
+        res.json({ success: true, message: "Numéro d'escroc supprimé de la base de blocage." });
+      } else {
+        res.status(404).json({ success: false, error: "Numéro d'escroc introuvable." });
+      }
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  app.put("/api/scams/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      const { phoneNumber, reason, reportedCount, status } = req.body;
+      const updated = dbManager.updateScam(id, { phoneNumber, reason, reportedCount, status });
+      if (updated) {
+        res.json({ success: true, message: "Numéro d'escroc modifié avec succès.", data: updated });
+      } else {
+        res.status(404).json({ success: false, error: "Numéro d'escroc introuvable." });
       }
     } catch (e: any) {
       res.status(500).json({ success: false, error: e.message });
@@ -625,8 +786,14 @@ async function startServer() {
   // 6. Threat Intel Automated Exfiltration APIs
   app.get("/api/threats/scrape-feeds", async (req, res) => {
     try {
-      const data = await scrapeGovernmentFeeds();
-      res.json({ success: true, count: data.length, data });
+      const result = await scrapeGovernmentFeeds();
+      res.json({ 
+        success: true, 
+        count: result.articles.length, 
+        summary: result.summary,
+        logs: result.logs,
+        data: result.articles 
+      });
     } catch (e: any) {
       res.status(500).json({ success: false, error: e.message });
     }

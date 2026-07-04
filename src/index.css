@@ -1,83 +1,219 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Premium High-Tech Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: #050a15 !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(16, 185, 129, 0.2) !important;
+  border-radius: 99px !important;
+  border: 1px solid rgba(16, 185, 129, 0.05) !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(16, 185, 129, 0.45) !important;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.6) !important;
+}
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-display: "Inter", var(--font-sans);
-  --font-mono: "Inter", var(--font-sans);
+  --font-display: "Orbitron", sans-serif;
+  --font-subtitle: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
 }
 
 :root {
-  --bg-principal: #040814;
-  --bg-card: #0B1226;
-  --bg-hover: #121F3F;
-  --bg-wow: #121A2F;
-  --border-color: rgba(59, 130, 246, 0.2);
+  --bg-principal: #060B16;
+  --bg-card: rgba(17, 24, 39, 0.85);
+  --bg-hover: rgba(31, 41, 55, 0.9);
+  --border-color: rgba(16, 185, 129, 0.08);
   
-  --text-principal: #FFFFFF;
+  --text-principal: #F9FAFB;
   --text-secondary: #94A3B8;
   
-  --color-accent: #3B82F6;
-  --color-accent-secondary: #06B6D4;
+  --color-accent: #10B981;
+  --color-accent-secondary: #059669;
   --color-danger: #EF4444;
-  --color-warning: #F59E0B;
   --color-success: #10B981;
 }
 
 @layer base {
   body {
-    background-color: #040814 !important;
-    color: #F1F5F9 !important;
-    font-family: "Inter", sans-serif !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background-color: #050a15 !important;
+    color: #F9FAFB !important;
+    font-family: var(--font-sans) !important;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Immersive dual-layer cyber grid & electronic dots pattern */
+    background-image: 
+      radial-gradient(rgba(16, 185, 129, 0.03) 1.5px, transparent 1.5px),
+      linear-gradient(rgba(255, 255, 255, 0.003) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.003) 1px, transparent 1px) !important;
+    background-size: 24px 24px, 48px 48px, 48px 48px !important;
+    background-position: 0 0, 12px 12px, 12px 12px !important;
   }
 }
 
-/* Force global uniform typography across everything */
-* {
-  font-family: "Inter", sans-serif !important;
+/* Force global uniform typography across everything, allowing display and mono overrides */
+body, button, input, select, textarea {
+  font-family: var(--font-sans) !important;
+}
+
+.font-display {
+  font-family: var(--font-display) !important;
+  letter-spacing: 0.06em !important;
+}
+
+.font-subtitle {
+  font-family: var(--font-subtitle) !important;
+}
+
+.font-mono {
+  font-family: var(--font-mono) !important;
 }
 
 /* Base resets & extreme contrast protection */
 
 /* Main backdrop */
 .bg-\[\#0B1020\] {
-  background-color: #040814 !important;
-  color: #FFFFFF !important;
+  background-color: #050a15 !important;
+  color: #F9FAFB !important;
 }
 
-/* Premium Dark Steel Royal Blue Cards with high contrast cyber borders */
-.bg-\[\#121A2F\] {
-  background-color: #0B1226 !important;
-  color: #FFFFFF !important;
-  border-color: rgba(59, 130, 246, 0.25) !important;
+/* Premium Glassmorphism Card component with cyber accents and corner ticks */
+.bg-\[\#121A2F\], .bg-\[\#111827\] {
+  background: linear-gradient(135deg, rgba(17, 24, 39, 0.85) 0%, rgba(11, 16, 27, 0.95) 100%) !important;
+  color: #F9FAFB !important;
+  border-color: rgba(16, 185, 129, 0.12) !important;
   border-width: 1px !important;
   border-style: solid !important;
-  box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.6) !important;
+  border-top-color: rgba(16, 185, 129, 0.28) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 12px 40px -10px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.03) !important;
+  backdrop-filter: blur(16px) !important;
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
-/* Custom Header area */
+/* Elegant micro-interactions on cards: lift & glowing corners */
+.bg-\[\#121A2F\]:hover, .bg-\[\#111827\]:hover {
+  border-color: rgba(16, 185, 129, 0.35) !important;
+  box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.85), 0 0 25px rgba(16, 185, 129, 0.06) !important;
+  transform: translateY(-2px);
+}
+
+/* Subtle technological border ticks inside cards (top-left & bottom-right) */
+.bg-\[\#121A2F\]::before, .bg-\[\#111827\]::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  width: 12px;
+  height: 12px;
+  border-top: 2px solid rgba(16, 185, 129, 0.65);
+  border-left: 2px solid rgba(16, 185, 129, 0.65);
+  pointer-events: none;
+  border-top-left-radius: 4px;
+  z-index: 10;
+}
+
+.bg-\[\#121A2F\]::after, .bg-\[\#111827\]::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 12px;
+  height: 12px;
+  border-bottom: 2px solid rgba(16, 185, 129, 0.65);
+  border-right: 2px solid rgba(16, 185, 129, 0.65);
+  pointer-events: none;
+  border-bottom-right-radius: 4px;
+  z-index: 10;
+}
+
+/* Subtle holographic radar scanning effect for cognitive widgets */
+@keyframes scanning {
+  0% { transform: translateY(-100%); opacity: 0; }
+  15% { opacity: 0.12; }
+  85% { opacity: 0.12; }
+  100% { transform: translateY(100%); opacity: 0; }
+}
+
+.holo-scanline {
+  position: relative;
+  overflow: hidden;
+}
+
+.holo-scanline::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 60px;
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.08) 0%, rgba(16, 185, 129, 0.01) 100%);
+  border-bottom: 1.5px solid rgba(16, 185, 129, 0.25);
+  animation: scanning 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Animated radar pulse for active surveillance status */
+@keyframes radar-pulse {
+  0% { transform: scale(1); opacity: 0.85; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+.radar-glow-ring {
+  position: relative;
+}
+
+.radar-glow-ring::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 1px solid rgba(16, 185, 129, 0.7);
+  border-radius: 9999px;
+  animation: radar-pulse 1.8s cubic-bezier(0.1, 0.8, 0.3, 1) infinite;
+  pointer-events: none;
+}
+
+/* Custom Header area with high end glassy feel */
 header.bg-\[\#121A2F\]\/45 {
-  background-color: rgba(4, 8, 20, 0.8) !important;
-  backdrop-filter: blur(12px) !important;
-  border-color: rgba(59, 130, 246, 0.2) !important;
+  background-color: rgba(5, 10, 21, 0.75) !important;
+  backdrop-filter: blur(16px) !important;
+  border-color: rgba(16, 185, 129, 0.1) !important;
   border-bottom-width: 1px !important;
 }
 
 /* Sub-containers & panels */
 .bg-\[\#0B1020\]\/45 {
-  background-color: #060B1C !important;
-  color: #FFFFFF !important;
-  border-color: rgba(59, 130, 246, 0.15) !important;
+  background-color: rgba(11, 16, 27, 0.7) !important;
+  color: #F9FAFB !important;
+  border-color: rgba(16, 185, 129, 0.1) !important;
   border-width: 1px !important;
+  border-radius: 12px !important;
 }
 
 /* Hover areas, selected list rows, and accents inside cards */
 .bg-\[\#1A2542\] {
-  background-color: #121F3F !important;
-  color: #FFFFFF !important;
-  border-color: rgba(59, 130, 246, 0.4) !important;
+  background-color: rgba(31, 41, 55, 0.6) !important;
+  color: #F9FAFB !important;
+  border-color: rgba(16, 185, 129, 0.15) !important;
+  border-radius: 12px !important;
 }
 
 /* Guarantee extreme contrast text visibility on dark elements */
@@ -89,6 +225,15 @@ th,
   color: #FFFFFF !important;
 }
 
+h1, h2, h3, h4 {
+  font-family: var(--font-display) !important;
+  letter-spacing: 0.05em !important;
+}
+
+h5, h6 {
+  font-family: var(--font-subtitle) !important;
+}
+
 .text-\[\#94A3B8\],
 .text-slate-400,
 .text-slate-500,
@@ -97,102 +242,179 @@ p {
 }
 
 .text-slate-300 {
-  color: #CBD5E1 !important;
+  color: #E2E8F0 !important;
 }
 
 /* ── Harmonization of Light Gray Bands / Table Headers and Lists ── */
-/* If elements have bg-slate-100/50, we override them to premium cyber slate backgrounds so they NEVER look like washed out gray-on-dark! */
 thead tr, 
 .bg-slate-100, 
 .bg-slate-50,
 .bg-slate-200 {
-  background-color: #0E1A33 !important;
-  color: #FFFFFF !important;
-  border-color: rgba(59, 130, 246, 0.2) !important;
+  background-color: rgba(17, 24, 39, 0.95) !important;
+  color: #F9FAFB !important;
+  border-color: rgba(16, 185, 129, 0.15) !important;
 }
 
-/* Sub-indicators or headers like "Identificateur inspecté" */
+/* Sub-indicators or headers */
 td.bg-slate-100,
 th.bg-slate-100 {
-  background-color: #13244D !important;
-  color: #FFFFFF !important;
-  border-bottom: 1px solid rgba(59, 130, 246, 0.25) !important;
-  border-right: 1px solid rgba(59, 130, 246, 0.25) !important;
+  background-color: rgba(11, 16, 27, 0.9) !important;
+  color: #F9FAFB !important;
+  border-bottom: 1px solid rgba(16, 185, 129, 0.1) !important;
+  border-right: 1px solid rgba(16, 185, 129, 0.1) !important;
 }
 
-/* Override text-slate-700/600 labels inside grey bands with highly legible white/cyan values */
+/* Override text-slate-700/600 labels inside grey bands */
 .bg-slate-100 *, 
 .bg-slate-50 *,
 .text-slate-700,
 .text-slate-600,
 .text-gray-700,
 .text-gray-600 {
-  color: #CBD5E1 !important;
+  color: #E2E8F0 !important;
 }
 
-/* Sidebar navigation in clean royal blue & cyan highlight theme */
+/* Sidebar navigation in clean cyber theme */
 aside.bg-\[\#121A2F\] {
-  background-color: #050B1D !important;
-  color: #FFFFFF !important;
-  border-right: 1px solid rgba(59, 130, 246, 0.25) !important;
+  background: linear-gradient(180deg, #090F1E 0%, #060B16 100%) !important;
+  color: #F9FAFB !important;
+  border-right: 1px solid rgba(16, 185, 129, 0.18) !important;
+  box-shadow: 12px 0 40px rgba(0, 0, 0, 0.65), 0 0 30px rgba(16, 185, 129, 0.03) !important;
 }
 
 aside.bg-\[\#121A2F\] .text-\[\#94A3B8\],
 aside.bg-\[\#121A2F\] .text-slate-400 {
-  color: #38BDF8 !important;
+  color: #94A3B8 !important;
+  font-family: var(--font-subtitle) !important;
 }
 
-aside.bg-\[\#121A2F\] .bg-\[\#1A2542\],
+/* Overwrite active tab inside the sidebar to represent a signature cyber glow look */
+aside.bg-\[\#121A2F\] button {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  border-radius: 12px !important;
+  border: 1px solid transparent !important;
+}
+
 aside.bg-\[\#121A2F\] button:hover {
-  background-color: #101F42 !important;
-  border-color: #38BDF8 !important;
+  background-color: rgba(16, 185, 129, 0.05) !important;
+  border-color: rgba(16, 185, 129, 0.2) !important;
   color: #FFFFFF !important;
 }
 
-/* Inputs & select options visibility */
-input, select, textarea {
-  background-color: #050B1D !important;
+/* Glowing selector for active sidebar elements */
+aside.bg-\[\#121A2F\] button.bg-\[\#10B981\]\/10 {
+  background-color: rgba(16, 185, 129, 0.08) !important;
+  border-color: rgba(16, 185, 129, 0.4) !important;
   color: #FFFFFF !important;
-  border-color: rgba(59, 130, 246, 0.3) !important;
+  box-shadow: 
+    inset 3px 0 0 #10B981, 
+    0 0 20px rgba(16, 185, 129, 0.15) !important;
+}
+
+/* Tactile tactile feedback for premium buttons */
+button {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.96) !important;
+}
+
+/* Tactile premium green buttons styling */
+button.bg-\[\#10B981\] {
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%) !important;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+  border-radius: 12px !important;
+}
+
+button.bg-\[\#10B981\]:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.35), 0 0 10px rgba(16, 185, 129, 0.2) !important;
+  background: linear-gradient(135deg, #34D399 0%, #10B981 100%) !important;
+}
+
+/* Inputs & select options visibility with subtle cyber border */
+input, select, textarea {
+  background-color: rgba(5, 10, 22, 0.9) !important;
+  color: #FFFFFF !important;
+  border: 1px solid rgba(16, 185, 129, 0.15) !important;
+  border-radius: 12px !important;
   outline: none !important;
+  transition: all 0.2s ease !important;
 }
 
 input:focus, select:focus, textarea:focus {
-  border-color: #38BDF8 !important;
-  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2) !important;
+  border-color: #10B981 !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25) !important;
 }
 
-/* Table rules and alignments */
-table, tr, td, th {
-  border-color: rgba(59, 130, 246, 0.15) !important;
+/* Premium table rules, spacings, and layout overrides */
+table {
+  border-collapse: separate !important;
+  border-spacing: 0 6px !important; /* Elegant spacing between table items */
+}
+
+thead th {
+  font-family: var(--font-display) !important;
+  font-size: 10px !important;
+  letter-spacing: 0.1em !important;
+  color: #94A3B8 !important;
+  background-color: rgba(11, 16, 27, 0.95) !important;
+  border-bottom: 2px solid rgba(16, 185, 129, 0.2) !important;
+  padding: 12px 16px !important;
+  text-transform: uppercase !important;
+}
+
+tbody tr {
+  background-color: rgba(17, 24, 39, 0.35) !important;
+  transition: all 0.25s ease !important;
+}
+
+tbody tr:hover {
+  background-color: rgba(31, 41, 55, 0.8) !important;
+  box-shadow: inset 3px 0 0 #10B981, 0 10px 20px rgba(0, 0, 0, 0.3) !important;
+  transform: scale(1.002);
+}
+
+tbody td {
+  padding: 12px 16px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03) !important;
 }
 
 /* Recharts Tooltip matching high-performance dark theme */
 .recharts-default-tooltip {
-  background-color: #0B1226 !important;
-  border-color: #38BDF8 !important;
+  background-color: #060B16 !important;
+  border-color: #10B981 !important;
   color: #FFFFFF !important;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.7) !important;
-  border-radius: 8px !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8) !important;
+  border-radius: 12px !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
 }
 
-/* Better visible scrollbars */
+/* Better visible scrollbars with modern sleek indicator */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #040814;
+  background: #03060E;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #121F3F;
-  border-radius: 4px;
+  background: #111E3A;
+  border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #38BDF8;
+  background: #10B981;
+}
+
+/* Custom glow element utility for widgets */
+.cyber-glow {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.15) !important;
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -202,23 +424,23 @@ table, tr, td, th {
 /* Make the Forensic printable document preview look premium dark/blue on screen */
 @media screen {
   .printable-area {
-    background-color: #0B1226 !important;
+    background-color: #060B16 !important;
     color: #F1F5F9 !important;
-    border-color: rgba(59, 130, 246, 0.3) !important;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6) !important;
+    border-color: rgba(16, 185, 129, 0.2) !important;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7) !important;
   }
   
   .printable-area * {
-    border-color: rgba(59, 130, 246, 0.2) !important;
+    border-color: rgba(16, 185, 129, 0.1) !important;
   }
-
+  
   .printable-area h2, 
   .printable-area h3, 
   .printable-area strong, 
   .printable-area b {
     color: #FFFFFF !important;
   }
-
+  
   .printable-area span,
   .printable-area p,
   .printable-area span.text-slate-650,
@@ -230,24 +452,25 @@ table, tr, td, th {
   }
 
   .printable-area .border-slate-900 {
-    border-color: rgba(59, 130, 246, 0.3) !important;
+    border-color: rgba(16, 185, 129, 0.2) !important;
   }
 
   .printable-area .bg-slate-100 {
-    background-color: #121F3F !important;
+    background-color: rgba(17, 24, 39, 0.9) !important;
   }
 
   .printable-area .bg-rose-50 {
     background-color: rgba(239, 68, 68, 0.1) !important;
-    color: #EF4444 !important;
+    color: #F87171 !important;
     border-color: rgba(239, 68, 68, 0.3) !important;
   }
 
   /* Core Modal content background fixes to prevent raw white blocks */
   .fixed div.bg-white {
-    background-color: #0B1226 !important;
+    background-color: #060B16 !important;
     color: #F1F5F9 !important;
-    border: 1px solid rgba(59, 130, 246, 0.3) !important;
+    border: 1px solid rgba(16, 185, 129, 0.2) !important;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85) !important;
   }
 
   .fixed div.bg-white * {
@@ -261,7 +484,7 @@ table, tr, td, th {
   }
 
   .fixed div.bg-white .bg-slate-100 {
-    background-color: #121F3F !important;
+    background-color: rgba(17, 24, 39, 0.9) !important;
     color: #FFFFFF !important;
   }
 
@@ -272,9 +495,9 @@ table, tr, td, th {
   /* Specific fix for italic blocks inside modals */
   .fixed div.bg-white italic,
   .fixed div.bg-white p.italic {
-    background-color: #060B1C !important;
+    background-color: rgba(5, 10, 22, 0.9) !important;
     color: #94A3B8 !important;
-    border-color: rgba(59, 130, 246, 0.15) !important;
+    border-color: rgba(16, 185, 129, 0.1) !important;
   }
 }
 
@@ -289,3 +512,118 @@ table, tr, td, th {
     border-color: #000000 !important;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   ── SP SENTINEL ELITE CYBERSECURITY DESIGN SYSTEM ──
+   ───────────────────────────────────────────────────────────── */
+
+/* High-fidelity circuit board traces and electronic network grid */
+.circuit-board-pattern {
+  background-image: 
+    radial-gradient(circle at 10px 10px, rgba(16, 185, 129, 0.06) 1.5px, transparent 1.5px),
+    linear-gradient(rgba(16, 185, 129, 0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16, 185, 129, 0.015) 1px, transparent 1px);
+  background-size: 20px 20px, 40px 40px, 40px 40px;
+  background-position: 0 0, 10px 10px, 10px 10px;
+}
+
+/* Highly discreet technological glowing accent line (horizontal) */
+.tech-line-h {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.15) 15%, rgba(16, 185, 129, 0.45) 50%, rgba(16, 185, 129, 0.15) 85%, transparent);
+  position: relative;
+  width: 100%;
+}
+
+.tech-line-h::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  background-color: #10B981;
+  border-radius: 50%;
+  box-shadow: 0 0 10px #10B981, 0 0 4px #10B981;
+}
+
+/* Elegant tech-line vertical */
+.tech-line-v {
+  width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(16, 185, 129, 0.15) 15%, rgba(16, 185, 129, 0.4) 50%, rgba(16, 185, 129, 0.15) 85%, transparent);
+  height: 100%;
+}
+
+/* Subtle glowing cyber halo behind displays */
+.cyber-halo {
+  position: relative;
+}
+
+.cyber-halo::before {
+  content: '';
+  position: absolute;
+  inset: -10%;
+  background: radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.05) 0%, transparent 65%);
+  filter: blur(24px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Elegant visual separator with middle cyber-diamond node */
+.separator-elegant {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin: 1.5rem auto;
+}
+
+.separator-elegant::before {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.02) 40%, rgba(16, 185, 129, 0.18) 100%);
+}
+
+.separator-elegant::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(270deg, transparent, rgba(255, 255, 255, 0.02) 40%, rgba(16, 185, 129, 0.18) 100%);
+}
+
+.separator-node {
+  width: 6px;
+  height: 6px;
+  background-color: #10B981;
+  transform: rotate(45deg);
+  margin: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.8);
+}
+
+/* Refined borders with double-layer micro-shadows */
+.refined-border {
+  border: 1px solid rgba(16, 185, 129, 0.14) !important;
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.03), inset 0 1px 1px rgba(255, 255, 255, 0.02) !important;
+}
+
+/* Subtle circuit connection line animation */
+@keyframes signal-flow {
+  0% { stroke-dashoffset: 24; }
+  100% { stroke-dashoffset: 0; }
+}
+
+.circuit-path {
+  stroke-dasharray: 8 4;
+  animation: signal-flow 1.5s linear infinite;
+}
+
+#dashboard-hero-banner {
+  background: linear-gradient(135deg, rgba(6, 78, 59, 0.35) 0%, rgba(2, 44, 34, 0.9) 50%, rgba(16, 185, 129, 0.1) 100%) !important;
+  border-color: rgba(16, 185, 129, 0.25) !important;
+  box-shadow: 0 12px 40px -10px rgba(0, 0, 0, 0.8), inset 0 1px 1px rgba(255, 255, 255, 0.04) !important;
+}
+
+

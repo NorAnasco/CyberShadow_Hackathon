@@ -17,10 +17,14 @@ public class SyncResponse {
     @SerializedName("data")
     private List<SignaturePayload> data;
 
+    @SerializedName("trusted_services")
+    private List<String> trustedServices;
+
     public boolean isSuccess() { return success; }
     public String getSyncTimestamp() { return syncTimestamp; }
     public int getDefaultSyncIntervalDays() { return defaultSyncIntervalDays; }
     public List<SignaturePayload> getData() { return data; }
+    public List<String> getTrustedServices() { return trustedServices; }
 
     public static class SignaturePayload {
         private int id;

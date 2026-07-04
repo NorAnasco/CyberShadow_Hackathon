@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { 
   Database, 
   Search, 
@@ -20,17 +20,24 @@ import {
   Sparkles,
   Send,
   ShieldCheck,
+  ShieldAlert,
   AlertOctagon,
-  Terminal
+  Terminal,
+  Shield,
+  Building,
+  CheckCircle,
+  HelpCircle,
+  PhoneCall
 } from "lucide-react";
-import { Threat } from "../types";
+import { Threat, ScamPhoneNumber } from "../types";
 
 interface Props {
   threats: Threat[];
+  scams: ScamPhoneNumber[];
   onRefreshData: () => Promise<void>;
 }
 
-export default function SignaturesTab({ threats, onRefreshData }: Props) {
+export default function SignaturesTab({ threats, scams, onRefreshData }: Props) {
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [severityFilter, setSeverityFilter] = useState("all");
@@ -68,6 +75,19 @@ export default function SignaturesTab({ threats, onRefreshData }: Props) {
   const [newSeverity, setNewSeverity] = useState<"Low" | "Medium" | "Critical">("Medium");
   const [newLocation, setNewLocation] = useState("Lomé");
   const [newDetails, setNewDetails] = useState("");
+
+  // Scams management sub-tab states
+  const [subTab, setSubTab] = useState<"threats" | "scams">("threats");
+  const [scamSearchTerm, setScamSearchTerm] = useState("");
+  const [editingScam, setEditingScam] = useState<ScamPhoneNumber | null>(null);
+  const [showAddScamForm, setShowAddScamForm] = useState(false);
+  const [newScamPhone, setNewScamPhone] = useState("");
+  const [newScamReason, setNewScamReason] = useState("");
+  const [newScamReportedCount, setNewScamReportedCount] = useState(1);
+  const [editScamPhone, setEditScamPhone] = useState("");
+  const [editScamReason, setEditScamReason] = useState("");
+  const [editScamReportedCount, setEditScamReportedCount] = useState(1);
+  const [editScamStatus, setEditScamStatus] = useState<"active" | "archived">("active");
 
   // Togolese samples for rapid testing
   const suspectSamples = [
@@ -265,6 +285,15 @@ export default function SignaturesTab({ threats, onRefreshData }: Props) {
     });
   }, [threats, searchTerm, typeFilter, severityFilter]);
 
+  const filteredScams = useMemo(() => {
+    return scams.filter(s => {
+      const matchSearch = scamSearchTerm.trim() === "" || 
+        s.phoneNumber.toLowerCase().includes(scamSearchTerm.toLowerCase()) ||
+        s.reason.toLowerCase().includes(scamSearchTerm.toLowerCase());
+      return matchSearch;
+    });
+  }, [scams, scamSearchTerm]);
+
   const handleStartEdit = (threat: Threat) => {
     setEditingThreat(threat);
     setEditValue(threat.value);
@@ -378,6 +407,105 @@ export default function SignaturesTab({ threats, onRefreshData }: Props) {
     }
   };
 
+  // --- HANDLERS FOR SCAMS MANAGEMENT (DANGEROUS NUMBERS) ---
+  const handleAddScamSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanPhone = newScamPhone.trim();
+    if (!cleanPhone) {
+      showFeedback("error", "Veuillez saisir un numéro de téléphone.");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/scams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phoneNumber: cleanPhone,
+          reason: newScamReason.trim() || "Numéro dangereux signalé manuellement",
+          reportedCount: newScamReportedCount
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setNewScamPhone("");
+        setNewScamReason("");
+        setNewScamReportedCount(1);
+        setShowAddScamForm(false);
+        showFeedback("success", `Numéro dangereux "${cleanPhone}" ajouté et synchronisé avec succès.`);
+        await onRefreshData();
+      } else {
+        showFeedback("error", "Erreur lors de l'ajout : " + data.error);
+      }
+    } catch (err) {
+      console.error(err);
+      showFeedback("error", "Erreur de communication avec le serveur.");
+    }
+  };
+
+  const handleStartEditScam = (scam: ScamPhoneNumber) => {
+    setEditingScam(scam);
+    setEditScamPhone(scam.phoneNumber);
+    setEditScamReason(scam.reason);
+    setEditScamReportedCount(scam.reportedCount);
+    setEditScamStatus(scam.status);
+  };
+
+  const handleUpdateScamSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingScam) return;
+
+    try {
+      const response = await fetch(`/api/scams/${editingScam.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phoneNumber: editScamPhone.trim(),
+          reason: editScamReason.trim(),
+          reportedCount: editScamReportedCount,
+          status: editScamStatus
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setEditingScam(null);
+        showFeedback("success", "Numéro dangereux mis à jour avec succès.");
+        await onRefreshData();
+      } else {
+        showFeedback("error", "Erreur lors de la mise à jour : " + data.error);
+      }
+    } catch (err) {
+      console.error(err);
+      showFeedback("error", "Erreur réseau lors de la mise à jour.");
+    }
+  };
+
+  const handleDeleteScam = async (id: string, phone: string) => {
+    if (!window.confirm(`Voulez-vous définitivement supprimer le numéro "${phone}" de la base de blocage ?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/scams/${id}`, {
+        method: "DELETE"
+      });
+      const data = await response.json();
+      if (data.success) {
+        showFeedback("success", `Le numéro "${phone}" a été supprimé définitivement.`);
+        await onRefreshData();
+      } else {
+        showFeedback("error", "Erreur lors de la suppression : " + data.error);
+      }
+    } catch (err) {
+      console.error(err);
+      showFeedback("error", "Erreur de connexion lors de la suppression.");
+    }
+  };
+
+  // --- COMPORTEMENT RECH/FILTRE ET CRUD SIGNATURES ---
+
   return (
     <div className="space-y-6 leading-relaxed">
 
@@ -454,19 +582,301 @@ export default function SignaturesTab({ threats, onRefreshData }: Props) {
             </div>
           </div>
           <div className="flex items-center gap-1.5 text-[10px] text-[#94A3B8] leading-normal pt-1 pl-1 bg-[#10B981]/5 p-2 rounded-md">
-            <span className="inline-block w-2 h-2 rounded-full bg-[#10B981] animate-ping"></span>
+            <span className="inline-block w-2 h-2 rounded-full bg-[#10B981] radar-glow-ring"></span>
             <span>
               <strong className="text-emerald-300">Diffusion d&apos;immunisation :</strong> Les agents terminaux Kéfyl Shield obtiendront cette signature de blocage passive à la reconnexion ou lors de sa prochaine mise à jour hertzienne de sécurité.
             </span>
           </div>
         </div>
       )}
-      
-      {/* Upper header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#121A2F] border border-white/5 rounded-xl p-6 shadow-md">
+
+      {/* Selection of Sub-Tab */}
+      <div className="flex bg-[#111827] border border-white/5 rounded-xl p-1.5 shadow-md">
+        <button
+          onClick={() => setSubTab("threats")}
+          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-mono text-xs font-bold transition-all ${
+            subTab === "threats"
+              ? "bg-[#10B981] text-white shadow-md"
+              : "text-[#94A3B8] hover:text-[#E5E7EB] hover:bg-white/5"
+          }`}
+        >
+          <Database className="w-4 h-4" />
+          BASE DES SIGNATURES IOC (WEB / DOMAINES / SMS)
+        </button>
+        <button
+          onClick={() => setSubTab("scams")}
+          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-mono text-xs font-bold transition-all ${
+            subTab === "scams"
+              ? "bg-red-600 text-white shadow-md"
+              : "text-[#94A3B8] hover:text-[#E5E7EB] hover:bg-white/5"
+          }`}
+        >
+          <PhoneCall className="w-4 h-4" />
+          BASE DES NUMÉROS DANGEREUX
+          <span className="bg-red-950/40 text-red-400 px-1.5 py-0.5 rounded text-[10px] border border-red-500/20 font-sans">
+            {scams.length}
+          </span>
+        </button>
+      </div>
+
+      {subTab === "scams" ? (
+        <>
+          {/* Upper header for Scams */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#111827] border border-white/5 rounded-xl p-6 shadow-md">
+            <div>
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono flex items-center gap-2">
+                <PhoneCall className="w-4.5 h-4.5 text-red-500" />
+                Registre National des Numéros Dangereux et Escrocs
+              </h3>
+              <p className="text-[11px] text-[#94A3B8] mt-1 font-sans">
+                Consultez, modifiez, supprimez et enregistrez manuellement les numéros de téléphone impliqués dans des escroqueries ou usurpations au Togo.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                onClick={() => setShowAddScamForm(!showAddScamForm)}
+                className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-mono text-xs font-bold rounded-xl uppercase tracking-wider transition flex items-center gap-2 cursor-pointer shadow-sm"
+              >
+                {showAddScamForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                {showAddScamForm ? "Fermer" : "Ajouter un Numéro"}
+              </button>
+            </div>
+          </div>
+
+          {/* Add Scam Form */}
+          {showAddScamForm && (
+            <div className="bg-[#111827] border border-white/5 p-6 rounded-xl space-y-4 animate-fade-in shadow-md">
+              <div className="border-b border-white/5 pb-2">
+                <span className="text-xs font-bold text-white font-mono tracking-wider uppercase block">
+                  Enrôlement Manuel d&apos;un Numéro Escroc / Dangereux
+                </span>
+              </div>
+              <form onSubmit={handleAddScamSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 font-mono text-xs">
+                <div className="space-y-1">
+                  <label className="text-slate-400 font-bold block uppercase text-[10px]">Numéro de téléphone :</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="+228 90 00 00 00"
+                    value={newScamPhone}
+                    onChange={(e) => setNewScamPhone(e.target.value)}
+                    className="w-full bg-[#0B1020] border border-white/5 focus:border-red-500 p-2.5 rounded-lg text-white outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-slate-400 font-bold block uppercase text-[10px]">Nombre de signalements :</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={newScamReportedCount}
+                    onChange={(e) => setNewScamReportedCount(parseInt(e.target.value) || 1)}
+                    className="w-full bg-[#0B1020] border border-white/5 focus:border-red-500 p-2.5 rounded-lg text-white outline-none"
+                  />
+                </div>
+                <div className="md:col-span-2 space-y-1">
+                  <label className="text-slate-400 font-bold block uppercase text-[10px]">Motif du blocage / Preuves :</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Tentative de faux dépôt Flooz / Tmoney usurpant..."
+                    value={newScamReason}
+                    onChange={(e) => setNewScamReason(e.target.value)}
+                    className="w-full bg-[#0B1020] border border-white/5 focus:border-red-500 p-2.5 rounded-lg text-white outline-none"
+                  />
+                </div>
+                <div className="md:col-span-4 flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddScamForm(false)}
+                    className="px-4 py-2 border border-white/5 text-[#94A3B8] hover:text-white rounded-lg transition cursor-pointer"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg transition cursor-pointer"
+                  >
+                    Confirmer l&apos;ajout national
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* Edit Scam Form */}
+          {editingScam && (
+            <div className="bg-amber-950/10 border border-amber-500/25 p-6 rounded-xl space-y-4 animate-fade-in">
+              <div className="flex justify-between items-center pb-2 border-b border-amber-500/15">
+                <span className="text-xs font-bold text-amber-500 font-mono tracking-wider uppercase block flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-amber-500" />
+                  Modification du Numéro Dangereux : &quot;{editingScam.phoneNumber}&quot;
+                </span>
+                <button onClick={() => setEditingScam(null)} className="text-[#94A3B8] hover:text-white cursor-pointer">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateScamSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 font-mono text-xs">
+                <div className="space-y-1">
+                  <label className="text-slate-400 font-bold block uppercase text-[10px]">Numéro de téléphone :</label>
+                  <input
+                    type="text"
+                    required
+                    value={editScamPhone}
+                    onChange={(e) => setEditScamPhone(e.target.value)}
+                    className="w-full bg-[#0B1020] border border-white/5 p-2.5 rounded-lg text-white outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-slate-400 font-bold block uppercase text-[10px]">Nombre de rapports :</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={editScamReportedCount}
+                    onChange={(e) => setEditScamReportedCount(parseInt(e.target.value) || 1)}
+                    className="w-full bg-[#0B1020] border border-white/5 p-2.5 rounded-lg text-white outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-slate-400 font-bold block uppercase text-[10px]">Statut :</label>
+                  <select
+                    value={editScamStatus}
+                    onChange={(e) => setEditScamStatus(e.target.value as any)}
+                    className="w-full bg-[#0B1020] border border-white/5 p-2.5 rounded-lg text-slate-300 outline-none cursor-pointer"
+                  >
+                    <option value="active">Active (Bloqué)</option>
+                    <option value="archived">Archivé (Surveillance)</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-slate-400 font-bold block uppercase text-[10px]">Motif / Preuves détaillées :</label>
+                  <input
+                    type="text"
+                    required
+                    value={editScamReason}
+                    onChange={(e) => setEditScamReason(e.target.value)}
+                    className="w-full bg-[#0B1020] border border-white/5 p-2.5 rounded-lg text-white outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div className="md:col-span-4 flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingScam(null)}
+                    className="px-4 py-2 border border-white/5 text-[#94A3B8] hover:text-white rounded-lg transition cursor-pointer"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg transition cursor-pointer"
+                  >
+                    Enregistrer les modifications
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* Scams Search Panel and Grid Table representation */}
+          <div className="bg-[#121A2F] border border-white/5 rounded-xl p-6 space-y-4 shadow-md">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-4">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <input
+                  type="text"
+                  placeholder="Rechercher un numéro d'escroc ou un motif..."
+                  value={scamSearchTerm}
+                  onChange={(e) => setScamSearchTerm(e.target.value)}
+                  className="w-full bg-[#0B1020] border border-white/5 focus:border-red-500 pl-10 pr-4 py-2 rounded-xl text-xs font-mono text-slate-200 outline-none transition"
+                />
+              </div>
+            </div>
+
+            <div className="overflow-x-auto border border-white/5 rounded-lg">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-[#0B1020]/80 border-b border-white/5 text-[10px] font-mono text-slate-500 uppercase">
+                    <th className="py-3 px-4 font-bold">Numéro Suspect</th>
+                    <th className="py-3 px-4 font-bold">Motif du Signalement</th>
+                    <th className="py-3 px-4 font-bold">Nombre de signalements</th>
+                    <th className="py-3 px-4 font-bold">Enregistré le</th>
+                    <th className="py-3 px-4 font-bold">Statut de blocage</th>
+                    <th className="py-3 px-4 font-bold">Actions d&apos;Équipe</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 font-mono text-xs text-slate-300">
+                  {filteredScams.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-500 text-xs">
+                        Aucun numéro dangereux ne correspond à votre recherche.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredScams.map((scam) => (
+                      <tr key={scam.id} className="hover:bg-white/[0.02] transition">
+                        <td className="py-3.5 px-4 font-bold text-white break-all">{scam.phoneNumber}</td>
+                        <td className="py-3.5 px-4 text-slate-400 text-[11px] max-w-sm truncate" title={scam.reason}>
+                          {scam.reason}
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-400">
+                          <span className="px-2 py-0.5 rounded text-[10px] bg-[#0B1020] text-slate-300 border border-white/5 font-medium">
+                            {scam.reportedCount} rapports
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-400">
+                          {new Date(scam.addedAt).toLocaleDateString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                            scam.status === "active" ? "bg-red-500/15 text-red-400 border-red-500/25" : "bg-slate-500/15 text-slate-400 border-slate-500/25"
+                          }`}>
+                            {scam.status === "active" ? "BLOQUÉ" : "SURVEILLANCE"}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleStartEditScam(scam)}
+                              className="p-1 px-2.5 rounded bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-slate-950 transition flex items-center gap-1 font-bold text-[10px] uppercase font-mono cursor-pointer"
+                              title="Modifier ce numéro"
+                            >
+                              <Edit2 className="w-3" />
+                              Éditer
+                            </button>
+                            <button
+                              onClick={() => handleDeleteScam(scam.id, scam.phoneNumber)}
+                              className="p-1 px-2.5 rounded bg-[#EF4444]/10 hover:bg-[#EF4444] text-[#EF4444] hover:text-white transition flex items-center gap-1 font-bold text-[10px] uppercase font-mono cursor-pointer"
+                              title="Supprimer ce numéro"
+                            >
+                              <Trash2 className="w-3" />
+                              Supprimer
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footing info count */}
+            <div className="flex items-center justify-between text-[10px] text-slate-550 pt-2 font-mono uppercase">
+              <span>Affichage de {filteredScams.length} sur {scams.length} numéros dangereux</span>
+              <span>Registre de blocage national togolais</span>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Upper header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#111827] border border-white/5 rounded-xl p-6 shadow-md">
         <div>
           <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono flex items-center gap-2">
-            <Database className="w-4.5 h-4.5 text-[#3B82F6]" />
+            <Database className="w-4.5 h-4.5 text-[#10B981]" />
             Console d&apos;Administration et d&apos;Édition de la Base Active
           </h3>
           <p className="text-[11px] text-[#94A3B8] mt-1 font-sans">
@@ -497,14 +907,14 @@ export default function SignaturesTab({ threats, onRefreshData }: Props) {
               className="px-3 py-2 bg-[#0B1020] border border-white/5 hover:border-[#1A2542] hover:bg-[#1A2542] text-slate-200 text-[10px] font-mono font-bold rounded-lg uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer shadow-sm"
               title="Importer et fusionner un lot de signatures (.json)"
             >
-              <Upload className="w-3.5 h-3.5 text-[#3B82F6]" />
+              <Upload className="w-3.5 h-3.5 text-[#10B981]" />
               IMPORTER
             </button>
           </div>
 
           <button
             onClick={() => setShowAddForm(!showAddForm)}
-            className="px-4 py-2 bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white font-mono text-xs font-bold rounded-xl uppercase tracking-wider transition flex items-center gap-2 cursor-pointer shadow-sm"
+            className="px-4 py-2 bg-[#10B981] hover:bg-[#10B981]/85 text-white font-mono text-xs font-bold rounded-xl uppercase tracking-wider transition flex items-center gap-2 cursor-pointer shadow-sm"
           >
             {showAddForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
             {showAddForm ? "Fermer" : "Ajouter une Signature"}
@@ -514,13 +924,13 @@ export default function SignaturesTab({ threats, onRefreshData }: Props) {
 
       {/* Add Signature Panel Form with Tabs */}
       {showAddForm && (
-        <div className="bg-[#121A2F] border border-white/5 p-6 rounded-xl space-y-5 animate-fade-in shadow-md">
+        <div className="bg-[#111827] border border-white/5 p-6 rounded-xl space-y-5 animate-fade-in shadow-md">
           {/* Sub tabs inside additive form */}
           <div className="flex border-b border-white/5 w-full bg-[#0B1020]/45 rounded-lg p-1">
             <button
               type="button"
               onClick={() => setFormMode("direct")}
-              className={`flex-1 py-2 font-mono text-[10px] font-bold flex items-center justify-center gap-1.5 rounded-md transition-all cursor-pointer ${formMode === "direct" ? "bg-[#3B82F6] text-white shadow" : "text-[#94A3B8] hover:text-[#E5E7EB]"}`}
+              className={`flex-1 py-2 font-mono text-[10px] font-bold flex items-center justify-center gap-1.5 rounded-md transition-all cursor-pointer ${formMode === "direct" ? "bg-[#10B981] text-white shadow" : "text-[#94A3B8] hover:text-[#E5E7EB]"}`}
             >
               <Plus className="w-3.5 h-3.5" />
               SAISIE MANUELLE DIRECTE
@@ -528,7 +938,7 @@ export default function SignaturesTab({ threats, onRefreshData }: Props) {
             <button
               type="button"
               onClick={() => setFormMode("ai_analysis")}
-              className={`flex-1 py-2 font-mono text-[10px] font-bold flex items-center justify-center gap-1.5 rounded-md transition-all cursor-pointer ${formMode === "ai_analysis" ? "bg-[#3B82F6] text-white shadow" : "text-[#94A3B8] hover:text-[#E5E7EB]"}`}
+              className={`flex-1 py-2 font-mono text-[10px] font-bold flex items-center justify-center gap-1.5 rounded-md transition-all cursor-pointer ${formMode === "ai_analysis" ? "bg-[#10B981] text-white shadow" : "text-[#94A3B8] hover:text-[#E5E7EB]"}`}
             >
               <Cpu className="w-3.5 h-3.5" />
               ANALYSE COGNITIVE PAR IA (SMS / WEB)
@@ -545,7 +955,7 @@ export default function SignaturesTab({ threats, onRefreshData }: Props) {
                   value={newValue}
                   onChange={(e) => setNewValue(e.target.value)}
                   placeholder="Ex. +228 99 88 77 66 ou ceet-pay.xyz"
-                  className="w-full bg-[#0B1020] border border-white/5 focus:border-[#3B82F6] p-2.5 rounded-lg text-white outline-none"
+                  className="w-full bg-[#0B1020] border border-white/5 focus:border-[#10B981] p-2.5 rounded-lg text-white outline-none"
                 />
               </div>
 
@@ -635,7 +1045,7 @@ export default function SignaturesTab({ threats, onRefreshData }: Props) {
                         key={idx}
                         type="button"
                         onClick={() => setSuspectText(sample.text)}
-                        className="text-left text-[11px] bg-[#0B1020]/50 hover:bg-[#3B82F6]/10 p-2 rounded-lg border border-white/5 text-[#94A3B8] hover:text-white transition block truncate cursor-pointer font-bold"
+                        className="text-left text-[11px] bg-[#0B1020]/50 hover:bg-[#10B981]/10 p-2 rounded-lg border border-white/5 text-[#94A3B8] hover:text-white transition block truncate cursor-pointer font-bold"
                       >
                         💡 {sample.title}
                       </button>
@@ -649,7 +1059,7 @@ export default function SignaturesTab({ threats, onRefreshData }: Props) {
                     <select
                       value={selectedModel}
                       onChange={(e) => setSelectedModel(e.target.value as any)}
-                      className="w-full bg-[#0B1020] border border-white/5 p-2.5 rounded-lg text-slate-300 focus:outline-none focus:border-[#3B82F6] font-mono text-xs cursor-pointer"
+                      className="w-full bg-[#0B1020] border border-white/5 p-2.5 rounded-lg text-slate-300 focus:outline-none focus:border-[#10B981] font-mono text-xs cursor-pointer"
                     >
                       <option value="gemini">✨ Gemini Flash Enterprise (Défaut SOC)</option>
                       <option value="claude">Anthropic Claude 3.5 Sonnet</option>
@@ -665,14 +1075,14 @@ export default function SignaturesTab({ threats, onRefreshData }: Props) {
                       onChange={(e) => setSuspectText(e.target.value)}
                       rows={4}
                       placeholder="Collez ici le SMS ou le lien à tester avant son inscription dans le registre d'immunisation..."
-                      className="w-full bg-[#0B1020] border border-white/5 p-3 rounded-lg text-xs text-slate-300 focus:outline-none focus:border-[#3B82F6] leading-relaxed"
+                      className="w-full bg-[#0B1020] border border-white/5 p-3 rounded-lg text-xs text-slate-300 focus:outline-none focus:border-[#10B981] leading-relaxed"
                     ></textarea>
                   </div>
 
                   <button
                     type="submit"
                     disabled={analyzingManual || suspectText.trim().length === 0}
-                    className="w-full py-2.5 bg-[#3B82F6] hover:bg-[#3B82F6]/90 font-mono text-xs font-bold uppercase rounded-lg text-white flex items-center justify-center gap-2 disabled:bg-[#121A2F] disabled:text-slate-650 transition cursor-pointer"
+                    className="w-full py-2.5 bg-[#10B981] hover:bg-[#10B981]/90 font-mono text-xs font-bold uppercase rounded-lg text-white flex items-center justify-center gap-2 disabled:bg-[#121A2F] disabled:text-slate-650 transition cursor-pointer"
                   >
                     {analyzingManual ? (
                       <>
@@ -681,7 +1091,7 @@ export default function SignaturesTab({ threats, onRefreshData }: Props) {
                       </>
                     ) : (
                       <>
-                        <Sparkles className="w-3.5 h-3.5 text-[#06B6D4]" />
+                        <Sparkles className="w-3.5 h-3.5 text-[#10B981]" />
                         Analyse et Vérification par l&apos;IA
                       </>
                     )}
@@ -693,7 +1103,7 @@ export default function SignaturesTab({ threats, onRefreshData }: Props) {
               <div className="lg:col-span-7 bg-[#0B1020]/25 rounded-xl border border-white/5 p-4 flex flex-col justify-between">
                 {analyzingManual ? (
                   <div className="flex-1 flex flex-col items-center justify-center text-center p-8 space-y-3 min-h-[220px]">
-                    <Cpu className="w-9 h-9 text-[#06B6D4] animate-spin" />
+                    <Cpu className="w-9 h-9 text-[#10B981] animate-spin" />
                     <div>
                       <h4 className="text-xs font-bold text-white uppercase font-mono">Décodage Cognitive Heuristique</h4>
                       <p className="text-[10px] text-slate-500 font-mono uppercase mt-1">Comparaison en temps réel avec le registre d&apos;immunisation mobile...</p>
@@ -704,15 +1114,26 @@ export default function SignaturesTab({ threats, onRefreshData }: Props) {
                     <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
                       <div>
                         <h4 className="text-xs font-bold text-white tracking-wide uppercase">{manualResult.summary}</h4>
-                        <p className="text-[9px] text-[#3B82F6] font-bold uppercase">Verdict IA : {manualResult.isPhishing ? "🔴 INTRUSION DÉTECTÉE" : "🟢 CONFORME / SAIN"}</p>
+                        <div className="text-[9px] text-[#10B981] font-bold uppercase flex items-center gap-1 mt-1.5">
+                          <span>Verdict IA :</span>
+                          {manualResult.isPhishing ? (
+                            <span className="inline-flex items-center gap-1 text-red-400">
+                              <ShieldAlert className="w-3.5 h-3.5 text-red-400" /> INTRUSION DÉTECTÉE
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[#10B981]">
+                              <ShieldCheck className="w-3.5 h-3.5 text-[#10B981]" /> CONFORME / SAIN
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <span className={`px-2 py-0.5 rounded text-[8px] uppercase font-bold ${manualResult.severity === "Critical" ? "bg-red-500/10 text-red-400 border border-red-500/10" : "bg-amber-500/10 text-amber-500"}`}>
                         {manualResult.severity}
                       </span>
                     </div>
 
-                    <div className="bg-[#3B82F6]/5 border border-[#3B82F6]/10 p-3 rounded-lg text-[11px] text-slate-350 leading-relaxed font-sans">
-                      <strong className="text-[#3B82F6] font-mono uppercase text-[9px] block mb-1">MÉCANISME D&apos;ATTENTION FRAUDULEUX IDENTIFIÉ :</strong>
+                    <div className="bg-[#10B981]/5 border border-[#10B981]/10 p-3 rounded-lg text-[11px] text-slate-350 leading-relaxed font-sans">
+                      <strong className="text-[#10B981] font-mono uppercase text-[9px] block mb-1">MÉCANISME D&apos;ATTENTION FRAUDULEUX IDENTIFIÉ :</strong>
                       {manualResult.explanation}
                     </div>
 
@@ -778,7 +1199,7 @@ export default function SignaturesTab({ threats, onRefreshData }: Props) {
               placeholder="Rechercher par valeur, emplacement, description..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-[#0B1020] border border-white/5 focus:border-[#3B82F6] pl-10 pr-4 py-2 rounded-xl text-xs font-mono text-slate-200 outline-none transition"
+              className="w-full bg-[#0B1020] border border-white/5 focus:border-[#10B981] pl-10 pr-4 py-2 rounded-xl text-xs font-mono text-slate-200 outline-none transition"
             />
           </div>
 
@@ -807,9 +1228,9 @@ export default function SignaturesTab({ threats, onRefreshData }: Props) {
                 className="bg-transparent text-xs font-mono text-slate-300 outline-none cursor-pointer"
               >
                 <option value="all">Toutes les urgences</option>
-                <option value="Critical">Critique 🔴</option>
-                <option value="Medium">Moyen 🟡</option>
-                <option value="Low">Faible ⚪</option>
+                <option value="Critical">Critique (Élevée)</option>
+                <option value="Medium">Moyen (Modérée)</option>
+                <option value="Low">Faible (Mineure)</option>
               </select>
             </div>
           </div>
@@ -991,6 +1412,8 @@ export default function SignaturesTab({ threats, onRefreshData }: Props) {
           <span>Secteurs du Togo protégés par synchronisation cellulaire</span>
         </div>
       </div>
+        </>
+      )}
 
     </div>
   );

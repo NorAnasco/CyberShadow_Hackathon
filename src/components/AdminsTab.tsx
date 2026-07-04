@@ -168,7 +168,7 @@ export default function AdminsTab({ currentUsername, onRefreshData }: Props) {
       {/* Overview Head */}
       <div className="bg-[#121A2F] border border-white/5 rounded-xl px-5 py-4 flex flex-col sm:flex-row justify-between items-center gap-3 shadow-md">
         <div className="flex items-center gap-2.5">
-          <KeyRound className="w-5 h-5 text-[#3B82F6]" />
+          <KeyRound className="w-5 h-5 text-[#10B981]" />
           <div>
             <span className="text-xs font-mono font-bold text-[#E5E7EB] uppercase tracking-widest block">
               GESTION DES ACCÈS ET PROFILS ADMINISTRATEURS
@@ -201,7 +201,7 @@ export default function AdminsTab({ currentUsername, onRefreshData }: Props) {
           <div>
             <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-3">
               <h3 className="text-xs font-bold text-white tracking-wider flex items-center gap-2 font-mono uppercase">
-                <Users className="w-4 h-4 text-[#3B82F6]" />
+                <Users className="w-4 h-4 text-[#10B981]" />
                 ADMINISTRATEURS ENREGISTRÉS ({admins.length})
               </h3>
               <span className="text-[9px] font-mono text-slate-500">CONTRÔLE CENTRAL</span>
@@ -209,7 +209,7 @@ export default function AdminsTab({ currentUsername, onRefreshData }: Props) {
 
             {loading ? (
               <div className="flex justify-center py-12">
-                <div className="w-8 h-8 border-4 border-blue-500/10 border-t-[#3B82F6] rounded-full animate-spin"></div>
+                <div className="w-8 h-8 border-4 border-[#10B981]/10 border-t-[#10B981] rounded-full animate-spin"></div>
               </div>
             ) : admins.length === 0 ? (
               <div className="text-center py-12 text-[#94A3B8] font-mono text-xs">
@@ -220,17 +220,17 @@ export default function AdminsTab({ currentUsername, onRefreshData }: Props) {
                 {admins.map((admin) => (
                   <div 
                     key={admin.username} 
-                    className={`p-4 border rounded-xl flex items-center justify-between transition ${admin.username.toUpperCase() === currentUsername.toUpperCase() ? "bg-[#3B82F6]/10 border-[#3B82F6]/30" : "bg-[#0B1020]/25 border-white/5 hover:border-slate-700"}`}
+                    className={`p-4 border rounded-xl flex items-center justify-between transition ${admin.username.toUpperCase() === currentUsername.toUpperCase() ? "bg-[#10B981]/10 border-[#10B981]/30" : "bg-[#0B1020]/25 border-white/5 hover:border-slate-700"}`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-xs ${admin.username.toUpperCase() === currentUsername.toUpperCase() ? "bg-[#3B82F6] text-white" : "bg-[#1A2542] text-slate-300 border border-white/5"}`}>
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-xs ${admin.username.toUpperCase() === currentUsername.toUpperCase() ? "bg-[#10B981] text-[#050A15]" : "bg-[#1A2542] text-slate-300 border border-white/5"}`}>
                         {admin.username.substring(0, 2).toUpperCase()}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-mono font-bold text-white">{admin.username}</span>
                           {admin.username.toUpperCase() === currentUsername.toUpperCase() && (
-                            <span className="px-1.5 py-0.5 rounded text-[8px] font-mono bg-[#3B82F6]/20 text-blue-300 border border-[#3B82F6]/30 uppercase font-bold">
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-mono bg-[#10B981]/20 text-emerald-300 border border-[#10B981]/30 uppercase font-bold">
                               Session Active
                             </span>
                           )}
@@ -277,7 +277,7 @@ export default function AdminsTab({ currentUsername, onRefreshData }: Props) {
           {/* Modify password form */}
           <div className="bg-[#121A2F] border border-white/5 rounded-xl p-6 relative overflow-hidden shadow-md">
             <h4 className="text-xs font-mono font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2 pb-2 border-b border-white/5">
-              <Lock className="w-3.5 h-3.5 text-[#3B82F6]" />
+              <Lock className="w-3.5 h-3.5 text-[#10B981]" />
               MODIFIER UN MOT DE PASSE
             </h4>
 
@@ -287,7 +287,7 @@ export default function AdminsTab({ currentUsername, onRefreshData }: Props) {
                 <select
                   value={selectedUserToChange}
                   onChange={(e) => setSelectedUserToChange(e.target.value)}
-                  className="w-full bg-[#0B1020]/45 border border-white/5 rounded-lg py-2 px-3 text-slate-200 focus:outline-none focus:border-[#3B82F6] transition"
+                  className="w-full bg-[#0B1020]/45 border border-white/5 rounded-lg py-2 px-3 text-slate-200 focus:outline-none focus:border-[#10B981] transition"
                 >
                   <option value="" disabled>Sélectionner un compte</option>
                   {admins.map(a => (
@@ -305,7 +305,7 @@ export default function AdminsTab({ currentUsername, onRefreshData }: Props) {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Minimum 5 caractères"
-                  className="w-full bg-[#0B1020]/45 border border-white/5 rounded-lg py-2 px-3 text-[#E5E7EB] placeholder-slate-700 focus:outline-none focus:border-[#3B82F6] transition"
+                  className="w-full bg-[#0B1020]/45 border border-white/5 rounded-lg py-2 px-3 text-[#E5E7EB] placeholder-slate-700 focus:outline-none focus:border-[#10B981] transition"
                   required
                 />
               </div>
@@ -313,7 +313,7 @@ export default function AdminsTab({ currentUsername, onRefreshData }: Props) {
               <button
                 type="submit"
                 disabled={changeLoading}
-                className="w-full py-2 bg-[#3B82F6] hover:bg-[#3B82F6]/80 text-white font-bold rounded-lg transition shadow-md font-sans text-xs flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-2 bg-[#10B981] hover:bg-[#10B981]/80 text-[#121A2F] font-black rounded-lg transition shadow-md font-sans text-xs flex items-center justify-center gap-2 cursor-pointer"
               >
                 {changeLoading ? (
                   <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
@@ -330,7 +330,7 @@ export default function AdminsTab({ currentUsername, onRefreshData }: Props) {
           {/* Creation form */}
           <div className="bg-[#121A2F] border border-white/5 rounded-xl p-6 relative overflow-hidden shadow-md">
             <h4 className="text-xs font-mono font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2 pb-2 border-b border-white/5">
-              <UserPlus className="w-3.5 h-3.5 text-[#3B82F6]" />
+              <UserPlus className="w-3.5 h-3.5 text-[#10B981]" />
               CRÉER UN ACCÈS CABINET ADMIN
             </h4>
 
@@ -342,7 +342,7 @@ export default function AdminsTab({ currentUsername, onRefreshData }: Props) {
                   value={createUsername}
                   onChange={(e) => setCreateUsername(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
                   placeholder="Ex: TCHAMBA, YAO"
-                  className="w-full bg-[#0B1020]/45 border border-white/5 rounded-lg py-2 px-3 text-[#E5E7EB] placeholder-slate-700 focus:outline-none focus:border-[#3B82F6] transition uppercase"
+                  className="w-full bg-[#0B1020]/45 border border-white/5 rounded-lg py-2 px-3 text-[#E5E7EB] placeholder-slate-700 focus:outline-none focus:border-[#10B981] transition uppercase"
                   required
                 />
               </div>
@@ -354,7 +354,7 @@ export default function AdminsTab({ currentUsername, onRefreshData }: Props) {
                   value={createPassword}
                   onChange={(e) => setCreatePassword(e.target.value)}
                   placeholder="Minimum 5 caractères"
-                  className="w-full bg-[#0B1020]/45 border border-white/5 rounded-lg py-2 px-3 text-[#E5E7EB] placeholder-slate-700 focus:outline-none focus:border-[#3B82F6] transition"
+                  className="w-full bg-[#0B1020]/45 border border-white/5 rounded-lg py-2 px-3 text-[#E5E7EB] placeholder-slate-700 focus:outline-none focus:border-[#10B981] transition"
                   required
                 />
               </div>
@@ -364,7 +364,7 @@ export default function AdminsTab({ currentUsername, onRefreshData }: Props) {
                 <select
                   value={createRole}
                   onChange={(e) => setCreateRole(e.target.value)}
-                  className="w-full bg-[#0B1020]/45 border border-white/5 rounded-lg py-2 px-3 text-slate-200 focus:outline-none focus:border-[#3B82F6] transition"
+                  className="w-full bg-[#0B1020]/45 border border-white/5 rounded-lg py-2 px-3 text-slate-200 focus:outline-none focus:border-[#10B981] transition"
                 >
                   <option value="Administrateur" className="bg-[#121A2F]">Administrateur Cyber-Menaces</option>
                   <option value="Super-Administrateur" className="bg-[#121A2F]">Chef de Cabinet SOC</option>

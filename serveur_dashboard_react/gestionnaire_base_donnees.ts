@@ -81,6 +81,26 @@ export interface MobileSignal {
   agentName?: string;
 }
 
+export interface PhoneComplaint {
+  id: string;
+  agentId: string;
+  agentName: string;
+  phoneNumber: string;
+  category: string;
+  description: string;
+  status: "pending" | "confirmed_scam" | "dismissed";
+  createdAt: string;
+}
+
+export interface ScamPhoneNumber {
+  id: string;
+  phoneNumber: string;
+  reason: string;
+  reportedCount: number;
+  addedAt: string;
+  status: "active" | "archived";
+}
+
 interface DatabaseSchema {
   campaigns: Campaign[];
   threats: Threat[];
@@ -89,6 +109,9 @@ interface DatabaseSchema {
   snapshots?: DbSnapshot[];
   admins?: AdminAccount[];
   mobileSignals?: MobileSignal[];
+  scrapedArticles?: any[];
+  complaints?: PhoneComplaint[];
+  scams?: ScamPhoneNumber[];
 }
 
 const DB_FILE_PATH = path.join(process.cwd(), "serveur_dashboard_react", "base_donnees_cache_soc.json");
@@ -316,6 +339,68 @@ const demoDatabase: DatabaseSchema = {
       timestamp: "2026-05-27T16:45:00Z",
       status: "pending"
     }
+  ],
+  complaints: [
+    {
+      id: "complaint-1",
+      agentId: "agent-01",
+      agentName: "SOC-Agent-Lome-Centre",
+      phoneNumber: "+228 99 71 22 44",
+      category: "Faux dépôt pressé / urgence",
+      description: "Appel insistant me demandant de renvoyer 50.000 FCFA Flooz prétendument versés par erreur.",
+      status: "pending",
+      createdAt: "2026-06-22T08:30:00Z"
+    },
+    {
+      id: "complaint-2",
+      agentId: "agent-03",
+      agentName: "SOC-Agent-Kara-Univ",
+      phoneNumber: "+228 99 71 22 44",
+      category: "Faux dépôt pressé / urgence",
+      description: "SMS de faux dépôt suivi d'un appel pressant pour me forcer à retourner l'argent immédiatement.",
+      status: "pending",
+      createdAt: "2026-06-22T09:12:00Z"
+    },
+    {
+      id: "complaint-3",
+      agentId: "agent-04",
+      agentName: "SOC-Agent-Sokode-Regia",
+      phoneNumber: "+228 90 88 12 30",
+      category: "Faux gains / Loterie mensongère",
+      description: "L'interlocuteur prétend travailler pour la Loterie Nationale Togolaise (LONATO) et réclame 15.000 FCFA de frais de dossier pour libérer un prétendu gain de 500.000 FCFA.",
+      status: "pending",
+      createdAt: "2026-06-22T11:45:00Z"
+    },
+    {
+      id: "complaint-4",
+      agentId: "agent-05",
+      agentName: "SOC-Agent-Atakpame-Plateau",
+      phoneNumber: "+228 99 71 22 44",
+      category: "Faux dépôt pressé / urgence",
+      description: "Dit s'être trompé et fait du chantage affectif en disant que c'est l'argent de l'hôpital de sa mère.",
+      status: "pending",
+      createdAt: "2026-06-22T14:20:00Z"
+    },
+    {
+      id: "complaint-5",
+      agentId: "agent-01",
+      agentName: "SOC-Agent-Lome-Centre",
+      phoneNumber: "+228 91 44 55 66",
+      category: "Faux positive : Appel légitime par erreur",
+      description: "Une dame âgée s'est trompée de numéro en appelant pour prendre des nouvelles de sa fille. Aucun danger.",
+      status: "dismissed",
+      createdAt: "2026-06-21T10:00:00Z"
+    }
+  ],
+  scams: [
+    {
+      id: "scam-1",
+      phoneNumber: "+228 99 88 77 66",
+      reason: "Faux gains promotionnels Flooz / Tmoney signalés à maintes reprises.",
+      reportedCount: 4,
+      addedAt: "2026-06-21T18:00:00Z",
+      status: "active"
+    }
   ]
 };
 
@@ -336,7 +421,9 @@ const initialDatabase: DatabaseSchema = {
     { username: "KPETO", password: "admin12345", role: "Administrateur", createdAt: "2026-05-27T12:00:00Z" },
     { username: "EHE", password: "admin12345", role: "Administrateur", createdAt: "2026-05-27T12:00:00Z" }
   ],
-  mobileSignals: []
+  mobileSignals: [],
+  complaints: [],
+  scams: []
 };
 
 class DBManager {
@@ -364,6 +451,15 @@ class DBManager {
     if (!this.db.mobileSignals) {
       this.db.mobileSignals = [];
     }
+    if (!this.db.scrapedArticles) {
+      this.db.scrapedArticles = [];
+    }
+    if (!this.db.complaints) {
+      this.db.complaints = [];
+    }
+    if (!this.db.scams) {
+      this.db.scams = [];
+    }
     if (!this.db.admins || this.db.admins.length === 0) {
       this.db.admins = [
         { username: "ANANIVI", password: hashPassword("admin12345"), role: "Administrateur", createdAt: "2026-05-27T12:00:00Z" },
@@ -378,6 +474,8 @@ class DBManager {
         password: hashPassword(a.password)
       }));
     }
+    // Start completely at 0 for real-world production.
+    // Mocks can still be reloaded on-demand via the admin panel / API.
     this.save();
   }
 
@@ -438,6 +536,8 @@ class DBManager {
     this.db.threats = [];
     this.db.agents = [];
     this.db.mobileSignals = [];
+    this.db.complaints = [];
+    this.db.scams = [];
     this.db.config.lastFlashUpdateAt = null;
     this.db.config.flashUpdateStatus = "Idle";
     this.save();
@@ -501,6 +601,8 @@ class DBManager {
     this.db.threats = [...demoDatabase.threats];
     this.db.agents = [...demoDatabase.agents];
     this.db.mobileSignals = [...(demoDatabase.mobileSignals || [])];
+    this.db.complaints = [...(demoDatabase.complaints || [])];
+    this.db.scams = [...(demoDatabase.scams || [])];
     this.db.config.lastFlashUpdateAt = demoDatabase.config.lastFlashUpdateAt;
     this.db.config.flashUpdateStatus = demoDatabase.config.flashUpdateStatus;
     this.db.config.gatewayAddress = demoDatabase.config.gatewayAddress || "https://sp-sentinel-hq.onrender.com";
@@ -783,6 +885,136 @@ class DBManager {
       return { success: true };
     }
     return { success: false };
+  }
+
+  public getScrapedArticles(): any[] {
+    if (!this.db.scrapedArticles) {
+      this.db.scrapedArticles = [];
+    }
+    return this.db.scrapedArticles;
+  }
+
+  public setScrapedArticles(articles: any[]) {
+    this.db.scrapedArticles = articles;
+    this.save();
+  }
+
+  public addScrapedArticle(article: any): boolean {
+    if (!this.db.scrapedArticles) {
+      this.db.scrapedArticles = [];
+    }
+    const exists = this.db.scrapedArticles.some(a => a.id === article.id || (a.title === article.title && a.source === article.source));
+    if (!exists) {
+      this.db.scrapedArticles.unshift(article); // most recent first
+      this.save();
+      return true;
+    }
+    return false;
+  }
+
+  // --- PHONE COMPLAINTS (DECLARATIONS) CRUD ---
+  public getComplaints(): PhoneComplaint[] {
+    if (!this.db.complaints) {
+      this.db.complaints = [];
+    }
+    return this.db.complaints;
+  }
+
+  public addComplaint(complaint: Omit<PhoneComplaint, "id" | "status" | "createdAt">): PhoneComplaint {
+    if (!this.db.complaints) {
+      this.db.complaints = [];
+    }
+    const newComplaint: PhoneComplaint = {
+      id: `complaint-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      ...complaint,
+      status: "pending",
+      createdAt: new Date().toISOString()
+    };
+    this.db.complaints.push(newComplaint);
+    this.save();
+    return newComplaint;
+  }
+
+  public updateComplaintStatus(id: string, status: "pending" | "confirmed_scam" | "dismissed"): PhoneComplaint | null {
+    if (!this.db.complaints) return null;
+    const complaint = this.db.complaints.find(c => c.id === id);
+    if (complaint) {
+      complaint.status = status;
+      this.save();
+      return complaint;
+    }
+    return null;
+  }
+
+  public deleteComplaint(id: string): boolean {
+    if (!this.db.complaints) return false;
+    const initialLen = this.db.complaints.length;
+    this.db.complaints = this.db.complaints.filter(c => c.id !== id);
+    if (this.db.complaints.length < initialLen) {
+      this.save();
+      return true;
+    }
+    return false;
+  }
+
+  // --- CONFIRMED PHONE SCAMMERS ---
+  public getScams(): ScamPhoneNumber[] {
+    if (!this.db.scams) {
+      this.db.scams = [];
+    }
+    return this.db.scams;
+  }
+
+  public addScam(scam: Omit<ScamPhoneNumber, "id" | "addedAt" | "status">): ScamPhoneNumber {
+    if (!this.db.scams) {
+      this.db.scams = [];
+    }
+    const cleanPhone = scam.phoneNumber.trim().replace(/\s+/g, "");
+    
+    // Check if phone number already exists
+    const existing = this.db.scams.find(s => s.phoneNumber.trim().replace(/\s+/g, "") === cleanPhone);
+    if (existing) {
+      existing.reportedCount = Math.max(existing.reportedCount, scam.reportedCount);
+      existing.reason = scam.reason;
+      existing.status = "active";
+      this.save();
+      return existing;
+    }
+
+    const newScam: ScamPhoneNumber = {
+      id: `scam-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      phoneNumber: scam.phoneNumber.trim(),
+      reason: scam.reason,
+      reportedCount: scam.reportedCount,
+      addedAt: new Date().toISOString(),
+      status: "active"
+    };
+
+    this.db.scams.push(newScam);
+    this.save();
+    return newScam;
+  }
+
+  public deleteScam(id: string): boolean {
+    if (!this.db.scams) return false;
+    const initialLen = this.db.scams.length;
+    this.db.scams = this.db.scams.filter(s => s.id !== id);
+    if (this.db.scams.length < initialLen) {
+      this.save();
+      return true;
+    }
+    return false;
+  }
+
+  public updateScam(id: string, updatedFields: Partial<Omit<ScamPhoneNumber, "id" | "addedAt">>): ScamPhoneNumber | null {
+    if (!this.db.scams) return null;
+    const item = this.db.scams.find(s => s.id === id);
+    if (item) {
+      Object.assign(item, updatedFields);
+      this.save();
+      return item;
+    }
+    return null;
   }
 }
 

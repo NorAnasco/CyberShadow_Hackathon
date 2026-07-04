@@ -25,6 +25,9 @@ public interface ContactStateDao {
     @Query("SELECT * FROM contact_states")
     List<ContactState> getAllTrackedContacts();
 
+    @Query("SELECT COUNT(*) FROM contact_states")
+    int getCount();
+
     @Query("DELETE FROM contact_states")
     void clearAll();
 }

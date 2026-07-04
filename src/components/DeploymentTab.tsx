@@ -311,7 +311,7 @@ export default function DeploymentTab({ agents, config, onUpdateSyncDays, onTrig
         {/* Sync config form */}
         <div className="bg-[#121A2F] border border-white/5 rounded-xl p-6 space-y-4 shadow-sm">
           <div className="flex items-center gap-2 pb-3 border-b border-white/5">
-            <Settings className="w-4.5 h-4.5 text-[#3B82F6]" />
+            <Settings className="w-4.5 h-4.5 text-[#10B981]" />
             <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">Options de Synchronisation</h3>
           </div>
 
@@ -329,7 +329,7 @@ export default function DeploymentTab({ agents, config, onUpdateSyncDays, onTrig
                   max="180"
                   value={syncDays}
                   onChange={(e) => setSyncDays(Number(e.target.value))}
-                  className="bg-[#0B1020] border border-white/5 text-white font-mono text-center text-xs rounded-lg p-2.5 w-24 focus:outline-none focus:border-[#3B82F6]"
+                  className="bg-[#0B1020] border border-white/5 text-white font-mono text-center text-xs rounded-lg p-2.5 w-24 focus:outline-none focus:border-[#10B981]"
                 />
                 <span className="text-[11px] font-mono text-slate-300">Jours</span>
               </div>
@@ -364,7 +364,7 @@ export default function DeploymentTab({ agents, config, onUpdateSyncDays, onTrig
                 placeholder="http://192.168.1.100:3000"
                 value={gatewayValue}
                 onChange={(e) => setGatewayValue(e.target.value)}
-                className="bg-[#0B1020] border border-white/5 text-white font-mono text-xs rounded-lg p-2.5 w-full focus:outline-none focus:border-[#3B82F6]"
+                className="bg-[#0B1020] border border-white/5 text-white font-mono text-xs rounded-lg p-2.5 w-full focus:outline-none focus:border-[#10B981]"
               />
             </div>
 
@@ -381,7 +381,7 @@ export default function DeploymentTab({ agents, config, onUpdateSyncDays, onTrig
         {/* Dynamic Gemini API key & Engine toggle configuration */}
         <div className="bg-[#121A2F] border border-white/5 rounded-xl p-6 space-y-4 shadow-sm">
           <div className="flex items-center gap-2 pb-3 border-b border-white/5">
-            <Cpu className="w-4.5 h-4.5 text-[#3B82F6]" />
+            <Cpu className="w-4.5 h-4.5 text-[#10B981]" />
             <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">Moteur IA &amp; Clé API</h3>
           </div>
 
@@ -395,10 +395,10 @@ export default function DeploymentTab({ agents, config, onUpdateSyncDays, onTrig
               <select
                 value={aiSelectionValue}
                 onChange={(e) => setAiSelectionValue(e.target.value as any)}
-                className="bg-[#0B1020] border border-white/5 text-slate-300 font-mono text-xs rounded-lg p-2.5 w-full focus:outline-none focus:border-[#3B82F6] cursor-pointer"
+                className="bg-[#0B1020] border border-white/5 text-slate-300 font-mono text-xs rounded-lg p-2.5 w-full focus:outline-none focus:border-[#10B981] cursor-pointer"
               >
-                <option value="gemini">Google Gemini active 🔴</option>
-                <option value="simulation">Simulation Heuristique Locale ⚪</option>
+                <option value="gemini">Google Gemini active (Système)</option>
+                <option value="simulation">Simulation Heuristique Locale</option>
               </select>
             </div>
 
@@ -409,7 +409,7 @@ export default function DeploymentTab({ agents, config, onUpdateSyncDays, onTrig
                 placeholder="Clé API personnalisée AI Studio"
                 value={apiKeyValue}
                 onChange={(e) => setApiKeyValue(e.target.value)}
-                className="bg-[#0B1020] border border-white/5 text-white font-mono text-xs rounded-lg p-2.5 w-full focus:outline-none focus:border-[#3B82F6]"
+                className="bg-[#0B1020] border border-white/5 text-white font-mono text-xs rounded-lg p-2.5 w-full focus:outline-none focus:border-[#10B981]"
               />
               <span className="text-[9px] text-slate-500 font-mono block">Remplir pour outrepasser la clé système globale (.env)</span>
             </div>
@@ -425,7 +425,7 @@ export default function DeploymentTab({ agents, config, onUpdateSyncDays, onTrig
             <button
               type="submit"
               disabled={savingAiConfig}
-              className="py-2.5 px-4 bg-[#3B82F6] hover:bg-[#3B82F6]/95 disabled:bg-[#1A2542] disabled:opacity-50 text-white font-mono text-[11px] font-bold rounded-lg transition w-full flex items-center justify-center gap-2 cursor-pointer"
+              className="py-2.5 px-4 bg-[#10B981] hover:bg-[#10B981]/95 disabled:bg-[#1A2542] disabled:opacity-50 text-white font-mono text-[11px] font-bold rounded-lg transition w-full flex items-center justify-center gap-2 cursor-pointer"
             >
               <Check className="w-3.5 h-3.5 text-[#10B981]" />
               {savingAiConfig ? "ENREGISTREMENT..." : "SAUVEGARDER CONFIG IA"}
@@ -461,7 +461,7 @@ export default function DeploymentTab({ agents, config, onUpdateSyncDays, onTrig
                 onClick={() => fileInputRef.current?.click()}
                 className="w-full py-2.5 px-4 bg-[#0B1020] border border-white/5 hover:border-[#1A2542] hover:bg-[#1A2542] text-slate-200 text-xs font-mono rounded-lg transition flex items-center justify-center gap-2 cursor-pointer"
               >
-                <Upload className="w-3.5 h-3.5 text-[#3B82F6]" />
+                <Upload className="w-3.5 h-3.5 text-[#10B981]" />
                 RESTAURER PAR MANDAT / IMPORT
               </button>
             </div>
@@ -490,7 +490,7 @@ export default function DeploymentTab({ agents, config, onUpdateSyncDays, onTrig
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-white/5">
               <div>
                 <h3 className="text-xs font-bold text-white tracking-wider uppercase flex items-center gap-2 font-mono">
-                  <Wifi className="w-4.5 h-4.5 text-[#3B82F6]" />
+                  <Wifi className="w-4.5 h-4.5 text-[#10B981]" />
                   CENTRAL BROADCAST &bull; MOBILE TELEMETRY
                 </h3>
                 <p className="text-[11px] text-[#94A3B8] mt-1 font-mono">Émettez des instructions critiques d&apos;urgence à tous les agents mobiles connectés dans les 5 régions économiques du Togo.</p>
@@ -578,7 +578,7 @@ export default function DeploymentTab({ agents, config, onUpdateSyncDays, onTrig
         {/* Database Snapshots list for immediate Restoration */}
         <div className="bg-[#121A2F] border border-white/5 rounded-xl p-6 space-y-4 shadow-md">
           <div className="flex items-center gap-2 pb-3 border-b border-white/5">
-            <History className="w-4.5 h-4.5 text-[#3B82F6]" />
+            <History className="w-4.5 h-4.5 text-[#10B981]" />
             <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">Historique des Sauvegardes Automatiques</h3>
           </div>
 
@@ -612,13 +612,13 @@ export default function DeploymentTab({ agents, config, onUpdateSyncDays, onTrig
                           second: "2-digit"
                         })}
                       </td>
-                      <td className="py-3 text-[#3B82F6] font-bold">{snap.threatsCount} signatures</td>
+                      <td className="py-3 text-[#10B981] font-bold">{snap.threatsCount} signatures</td>
                       <td className="py-3 text-right">
                         <button
                            onClick={() => handleRestoreSnapshot(snap.id)}
-                           className="px-2.5 py-1 bg-[#1A2542] hover:bg-[#3B82F6] hover:text-white rounded border border-white/5 text-[10px] font-mono uppercase font-bold transition cursor-pointer inline-flex items-center gap-1"
+                           className="px-2.5 py-1 bg-[#1A2542] hover:bg-[#10B981] hover:text-white rounded border border-white/5 text-[10px] font-mono uppercase font-bold transition cursor-pointer inline-flex items-center gap-1"
                         >
-                          <Undo2 className="w-3 h-3 text-[#3B82F6]" />
+                          <Undo2 className="w-3 h-3 text-[#10B981]" />
                           Restaurer
                         </button>
                       </td>

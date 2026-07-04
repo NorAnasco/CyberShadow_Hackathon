@@ -118,6 +118,18 @@ public class KefylNotificationService extends NotificationListenerService {
         executorService.execute(() -> {
             Log.d(TAG, "Interception de notification de " + title + " : " + text);
             
+            // Détection si l'expéditeur est un SenderID officiel SMS (ex: "ORABANK", "CEET", "SURPRISE")
+            boolean isSmsSenderIdOfficial = false;
+            if (packageName.contains("sms") || packageName.contains("mms") || packageName.contains("messaging") || packageName.contains("messenger")) {
+                String letterCheck = title.replaceAll("[^a-zA-Z]", "");
+                String digitCheck = title.replaceAll("[^0-9]", "");
+                if (letterCheck.length() >= 2 && digitCheck.length() < 5) {
+                    isSmsSenderIdOfficial = true;
+                    Log.i(TAG, "🛡️ Règle automatique Togo : '" + title + "' détecté comme un SenderID officiel SMS. Analyse de sécurité bypassée automatiquement.");
+                    return; // BYPASS COMPLET POUR LES SERVICES SPÉCIAUX DE CONFIANCE
+                }
+            }
+            
             // Détection si c'est un message de groupe (WhatsApp / SMS groupé)
             boolean isGroup = false;
             String groupName = "";
@@ -131,7 +143,7 @@ public class KefylNotificationService extends NotificationListenerService {
             }
 
             // 1. Étape d'identification du contact (Annuaire vs Inconnu)
-            boolean isKnown = isContactInPhonebook(this, title);
+            boolean isKnown = isContactInPhonebook(this, title) || isSmsSenderIdOfficial;
             
             // Récupérer et normaliser l'identifiant de contact
             String contactPhone = getCleanedPhoneNumber(title);
@@ -146,8 +158,26 @@ public class KefylNotificationService extends NotificationListenerService {
             SharedPreferences prefs = getSharedPreferences("kefyl_prefs", MODE_PRIVATE);
             java.util.Set<String> trustedSources = prefs.getStringSet("trusted_sources", new java.util.HashSet<>());
             
+            // Normalisation pour une comparaison robuste et insensible à la casse
+            String cleanTitle = title.trim().toUpperCase();
+            String cleanPhone = contactPhone.trim().toUpperCase();
+            String cleanGroupName = groupName.trim().toUpperCase();
+
+            boolean isTitleTrusted = false;
+            boolean isGroupTrusted = false;
+
+            for (String src : trustedSources) {
+                String cleanSrc = src.trim().toUpperCase();
+                if (cleanSrc.equals(cleanTitle) || cleanSrc.equals(cleanPhone) || cleanTitle.contains(cleanSrc)) {
+                    isTitleTrusted = true;
+                }
+                if (!cleanGroupName.isEmpty() && (cleanSrc.equals(cleanGroupName) || cleanGroupName.contains(cleanSrc))) {
+                    isGroupTrusted = true;
+                }
+            }
+
             // Si c'est un groupe répertorié sur Liste Verte (trusted_sources)
-            if (isGroup && !groupName.isEmpty() && trustedSources.contains(groupName)) {
+            if (isGroup && !groupName.isEmpty() && isGroupTrusted) {
                 // Sur groupe de confiance, seule une signature d'IoC de Lomé central peut shunter le bypass
                 Signature matchedSignature = phishingAnalyzer.analyzeMessage(text, contactPhone);
                 if (matchedSignature != null) {
@@ -161,9 +191,9 @@ public class KefylNotificationService extends NotificationListenerService {
                 return;
             }
 
-            // Si c'est un contact individuel explicitement en source de confiance
-            if (trustedSources.contains(title) || trustedSources.contains(contactPhone)) {
-                Log.i(TAG, "🛡️ Source de confiance détectée (" + title + " / " + contactPhone + "). On ignore l'analyse de sécurité.");
+            // Si c'est un contact individuel ou service d'institution de confiance de la Liste Verte
+            if (isTitleTrusted) {
+                Log.i(TAG, "🛡️ Source de confiance de la Liste Verte détectée (" + title + " / " + contactPhone + "). On ignore l'analyse de sécurité.");
                 return;
             }
 

@@ -167,6 +167,22 @@ public class SyncWorker extends Worker {
                     Log.i(TAG, "Enregistrement réussi de " + signaturesToInsert.size() + " signatures binaires d'IaC.");
                 }
 
+                List<String> trustedList = syncData.getTrustedServices();
+                if (trustedList != null) {
+                    java.util.Set<String> trustedSet = new java.util.HashSet<>(trustedList);
+                    // Always make sure standard Togolese fallbacks are present in local whitelist
+                    trustedSet.add("CEET");
+                    trustedSet.add("ORABANK");
+                    trustedSet.add("ECOBANK");
+                    trustedSet.add("CORIS BANK");
+                    trustedSet.add("Gouv.tg");
+                    trustedSet.add("YAS");
+                    trustedSet.add("MIX BY YAS");
+                    trustedSet.add("LEMA");
+                    prefs.edit().putStringSet("trusted_sources", trustedSet).apply();
+                    Log.i(TAG, "Mise à jour de la Liste Verte de confiance mobile réussie. " + trustedSet.size() + " services protégés.");
+                }
+
                 // Enregistrement de la date de dernière mise à jour dans SharedPreferences
                 saveLastSyncTime();
                 

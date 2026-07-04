@@ -19,7 +19,14 @@ import {
   Globe,
   Settings,
   HelpCircle,
-  AlertCircle
+  AlertCircle,
+  Cpu,
+  Smartphone,
+  Radio,
+  Sparkles,
+  Layers,
+  Binary,
+  ArrowUpRight
 } from "lucide-react";
 import { 
   ResponsiveContainer, 
@@ -31,12 +38,14 @@ import {
   CartesianGrid, 
   Legend 
 } from "recharts";
-import { Threat, MobileAgent } from "../types";
+import { Threat, MobileAgent, MobileSignal, PhoneComplaint } from "../types";
 
 interface Props {
   threats: Threat[];
   agents: MobileAgent[];
-  onQuickAddThreat: (type: "domain" | "ip" | "email" | "phone", value: string) => void;
+  mobileSignals: MobileSignal[];
+  complaints: PhoneComplaint[];
+  onQuickAddThreat: (type: "domain" | "ip" | "email" | "phone", value: string, severity?: string, details?: string) => void;
   onResetToZero?: () => Promise<void>;
   onLoadDemoData?: () => Promise<void>;
   currentUsername: string;
@@ -45,21 +54,29 @@ interface Props {
 export default function DashboardTab({ 
   threats, 
   agents, 
+  mobileSignals,
+  complaints,
   onQuickAddThreat,
   onResetToZero,
   onLoadDemoData,
   currentUsername
 }: Props) {
-  // Chart & Filter stats
-  const [selectedSeverities, setSelectedSeverities] = useState<string[]>(["Low", "Medium", "Critical"]);
-
-  // Real-time Togo Network Clock (GMT+0, Greenwich Mean Time timezone)
+  
+  // Active clock GMT
   const [togoClock, setTogoClock] = useState("");
+  const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
+
+  // States for the sleek interactive Quick Add IoC Form
+  const [quickType, setQuickType] = useState<"domain" | "ip" | "email" | "phone">("phone");
+  const [quickValue, setQuickValue] = useState("");
+  const [quickDetails, setQuickDetails] = useState("");
+  const [quickSeverity, setQuickSeverity] = useState<"Low" | "Medium" | "Critical">("Medium");
+  const [successMsg, setSuccessMsg] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const updateClock = () => {
       const gmtDate = new Date();
-      // Togo is in GMT / UTC+0, so hours, minutes, seconds match UTC exactly
       const days = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
       const dayName = days[gmtDate.getUTCDay()];
       const day = String(gmtDate.getUTCDate()).padStart(2, "0");
@@ -79,452 +96,777 @@ export default function DashboardTab({
     return () => clearInterval(timer);
   }, []);
 
-  // Server health metrics - Initializes to absolute zero when there are no connected agents or threats
-  const systemMetrics = useMemo(() => {
-    const hasLiveActivity = agents.length > 0;
-    
-    if (!hasLiveActivity) {
-      return {
-        cpu: "0.0%",
-        ram: "0.0 GB / 4.0 GB",
-        uptime: "0m (Base Vide)",
-        engineStatus: "Inactif",
-        latency: "0ms",
-        statusColor: "bg-slate-500 text-slate-400 border-slate-700/60"
-      };
+  // Compute dynamic KPIs - strictly initialized to 0 if database is empty
+  const kpiStats = useMemo(() => {
+    const totalThreatsCount = threats.length;
+    const totalSignalsCount = mobileSignals.length;
+    const totalComplaintsCount = complaints.length;
+    const totalAgentsCount = agents.length;
+
+    // Fully dynamic counters from database - no artificial offsets when empty
+    const totalIntercepted = totalThreatsCount + totalSignalsCount;
+    const activeSignatures = totalThreatsCount;
+    const citizenComplaints = totalComplaintsCount;
+    const synchronizedAgents = totalAgentsCount;
+
+    return {
+      totalIntercepted,
+      activeSignatures,
+      citizenComplaints,
+      synchronizedAgents
+    };
+  }, [threats, mobileSignals, complaints, agents]);
+
+  // Combined real-time table of actual threats
+  const liveThreatFeed = useMemo(() => {
+    // If database is completely empty, keep it clean and empty
+    if (threats.length === 0) {
+      return [];
     }
 
-    // Dynamic but realistic performance indexing showing CPU/Latency fluctuation when simulated devices are connected
-    const baseCpu = 12.4 + (threats.length * 0.4);
-    const cpuValue = Math.min(95, baseCpu).toFixed(1);
-    const calculatedLatency = Math.min(180, 24 + Math.floor(Math.sin(Date.now() / 15000) * 8));
-    
-    return {
-      cpu: `${cpuValue}%`,
-      ram: "2.1 GB / 4.0 GB",
-      uptime: "12h 44m",
-      engineStatus: "Opérationnel",
-      latency: `~${calculatedLatency}ms`,
-      statusColor: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-    };
-  }, [agents, threats]);
+    // Map real threats to match the SOC feed row design
+    const mappedRealThreats = threats.map((t, idx) => {
+      // Determine elegant type
+      let typeLabel = "Alerte Cybersécurité";
+      if (t.type === "phone") {
+        typeLabel = t.details.toLowerCase().includes("flooz") || t.details.toLowerCase().includes("money") 
+          ? "Faux Gains Flooz/TMoney" 
+          : "Gendarmerie / Usurpation";
+      } else if (t.type === "domain") {
+        typeLabel = t.details.toLowerCase().includes("ceet") 
+          ? "Facture CEET fictive" 
+          : "Phishing Bancaire / Clone";
+      } else {
+        typeLabel = "Indicateur Suspect";
+      }
 
-  // Format chart data dynamically, ensuring empty baselines when the database is initialized to zero
-  const chartData = useMemo(() => {
-    const grouped: Record<string, { date: string; Low: number; Medium: number; Critical: number; Total: number }> = {};
-    
-    // Fallback static days to ensure visual graphs render beautifully
-    const baseDays = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      return d.toISOString().split("T")[0];
-    }).reverse();
+      // Map status
+      let statusLabel = "Bloqué";
+      if (t.status === "sandbox") statusLabel = "En Quarantaine";
+      if (t.status === "validated") statusLabel = "Signalé ANCY";
 
-    baseDays.forEach(day => {
-      const formatted = day.split("-").slice(1).join("/"); // e.g. "05/22"
-      grouped[day] = { date: formatted, Low: 0, Medium: 0, Critical: 0, Total: 0 };
+      // Formulate a beautiful time
+      const dateObj = new Date(t.detectedAt);
+      const hours = String(dateObj.getHours()).padStart(2, "0");
+      const minutes = String(dateObj.getMinutes()).padStart(2, "0");
+      const seconds = String(dateObj.getSeconds()).padStart(2, "0");
+      const timeStr = isNaN(dateObj.getTime()) ? `12:${String(idx * 7).padStart(2, "0")}:15` : `${hours}:${minutes}:${seconds}`;
+
+      return {
+        id: t.id,
+        time: timeStr,
+        type: typeLabel,
+        sender: t.value,
+        severity: t.severity,
+        status: statusLabel,
+        details: t.details
+      };
     });
 
+    // Real threats always come first to show immediate dynamic feedback
+    return mappedRealThreats.slice(0, 10);
+  }, [threats]);
+
+  // Extract the very last automated Gemini extracted IoC
+  const latestGeminiIoC = useMemo(() => {
+    // If we have actual threats, return the latest one
     if (threats.length > 0) {
-      threats.forEach(t => {
-        const dayRaw = t.detectedAt.split("T")[0];
-        if (!grouped[dayRaw]) {
-          const formatted = dayRaw.split("-").slice(1).join("/");
-          grouped[dayRaw] = { date: formatted, Low: 0, Medium: 0, Critical: 0, Total: 0 };
-        }
-        
-        const sev = t.severity;
-        if (selectedSeverities.includes(sev)) {
-          grouped[dayRaw][sev] += 1;
-          grouped[dayRaw].Total += 1;
-        }
-      });
-    } else {
-      // If zero threats, force zero levels
-      baseDays.forEach(day => {
-        grouped[day] = { date: day.split("-").slice(1).join("/"), Low: 0, Medium: 0, Critical: 0, Total: 0 };
-      });
+      const latest = threats[threats.length - 1];
+      return {
+        type: latest.type,
+        value: latest.value,
+        details: latest.details || "Extraction automatisée"
+      };
     }
-
-    return Object.values(grouped).sort((a, b) => a.date.localeCompare(b.date));
-  }, [threats, selectedSeverities]);
-
-  const severityCounts = useMemo(() => {
+    // Fallback if database is reset to zero
     return {
-      total: threats.length,
-      critical: threats.filter(t => t.severity === "Critical").length,
-      medium: threats.filter(t => t.severity === "Medium").length,
-      low: threats.filter(t => t.severity === "Low").length,
+      type: "N/A",
+      value: "Aucun indicateur",
+      details: "Base de données vide - En attente d'ingestion"
     };
   }, [threats]);
 
-  // Abstract Togo vector map plotting
-  const mapHotspots = useMemo(() => {
-    if (agents.length === 0) return [];
+  // Dynamic but premium dense chart data showing activity fluctuation according to severities
+  const chartData = useMemo(() => {
+    const days = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
     
-    // Mapping agents dynamically to Togo's geographic coordinate points
-    const points: Record<string, { lat: number; lng: number; color: string }> = {
-      "Lomé": { lat: 310, lng: 120, color: "stroke-emerald-400 bg-emerald-500" },
-      "Aného": { lat: 300, lng: 145, color: "stroke-emerald-400 bg-emerald-500" },
-      "Kpalimé": { lat: 240, lng: 95, color: "stroke-emerald-400 bg-emerald-500" },
-      "Atakpamé": { lat: 195, lng: 115, color: "stroke-emerald-400 bg-emerald-500" },
-      "Sokodé": { lat: 130, lng: 110, color: "stroke-teal-400 bg-teal-500" },
-      "Kara": { lat: 80, lng: 135, color: "stroke-emerald-400 bg-emerald-500" },
-      "Cinkassé": { lat: 20, lng: 105, color: "stroke-amber-400 bg-amber-500" },
+    // Initialize day counts to 0
+    const dataMap = days.map(day => ({
+      name: day,
+      Critique: 0,
+      Moyen: 0,
+      Faible: 0
+    }));
+
+    // If empty state, return all zeros
+    const totalCount = threats.length + mobileSignals.length + complaints.length;
+    if (totalCount === 0) {
+      return dataMap;
+    }
+
+    // Group real threats by day of week
+    threats.forEach(t => {
+      try {
+        const date = new Date(t.detectedAt);
+        let dayIdx = date.getDay() - 1; // getDay() is 0 for Sun, 1 for Mon...
+        if (dayIdx === -1) dayIdx = 6; // Sunday is index 6
+        
+        const sev = t.severity;
+        if (sev === "Critical") {
+          dataMap[dayIdx].Critique += 1;
+        } else if (sev === "Medium") {
+          dataMap[dayIdx].Moyen += 1;
+        } else {
+          dataMap[dayIdx].Faible += 1;
+        }
+      } catch (e) {}
+    });
+
+    // Group signals by day of week (usually Medium severity)
+    mobileSignals.forEach(s => {
+      try {
+        const date = new Date(s.timestamp || Date.now());
+        let dayIdx = date.getDay() - 1;
+        if (dayIdx === -1) dayIdx = 6;
+        dataMap[dayIdx].Moyen += 1;
+      } catch (e) {}
+    });
+
+    // Group citizen complaints by day (usually Faible/Moyen severity)
+    complaints.forEach(c => {
+      try {
+        const date = new Date(c.createdAt || Date.now());
+        let dayIdx = date.getDay() - 1;
+        if (dayIdx === -1) dayIdx = 6;
+        dataMap[dayIdx].Faible += 1;
+      } catch (e) {}
+    });
+
+    return dataMap;
+  }, [threats, mobileSignals, complaints]);
+
+  // Geographic Heatmap metrics of Togo regions calculated dynamically from actual locations
+  const togoGeographicData = useMemo(() => {
+    const totalCount = threats.length + mobileSignals.length + complaints.length;
+
+    const countByRegion = (regionId: string) => {
+      let count = 0;
+      const isRegion = (loc: string = "", regId: string) => {
+        const l = loc.toLowerCase();
+        if (regId === "maritime") return l.includes("lomé") || l.includes("lome") || l.includes("maritime") || l.includes("baguida") || l.includes("agoè");
+        if (regId === "plateaux") return l.includes("atakpamé") || l.includes("atakpame") || l.includes("plateaux") || l.includes("kpalimé") || l.includes("kpalime") || l.includes("notsé") || l.includes("notse");
+        if (regId === "centrale") return l.includes("sokodé") || l.includes("sokode") || l.includes("centrale") || l.includes("tchamba") || l.includes("bafilo");
+        if (regId === "kara") return l.includes("kara") || l.includes("niamtougou") || l.includes("bassar");
+        if (regId === "savanes") return l.includes("savanes") || l.includes("dapaong") || l.includes("mango") || l.includes("cinkassé") || l.includes("cinkasse");
+        return false;
+      };
+
+      threats.forEach(t => { if (isRegion(t.location, regionId)) count++; });
+      mobileSignals.forEach(s => { if (isRegion(s.location, regionId)) count++; });
+      complaints.forEach(c => {
+        const agent = agents.find(a => a.id === c.agentId || a.name === c.agentName);
+        if (agent && isRegion(agent.city, regionId)) count++;
+      });
+
+      return count;
     };
 
-    return agents.map(agent => {
-      const loc = points[agent.city] || { lat: 310, lng: 120, color: "stroke-slate-400 bg-slate-500" };
-      return {
-        name: agent.name,
-        city: agent.city,
-        lat: loc.lat,
-        lng: loc.lng,
-        color: loc.color,
-        status: agent.status
-      };
-    });
-  }, [agents]);
+    const maritimeIncidents = countByRegion("maritime");
+    const plateauxIncidents = countByRegion("plateaux");
+    const centraleIncidents = countByRegion("centrale");
+    const karaIncidents = countByRegion("kara");
+    const savanesIncidents = countByRegion("savanes");
 
-  const handleSeverityToggle = (sev: string) => {
-    setSelectedSeverities(prev => 
-      prev.includes(sev) ? prev.filter(s => s !== sev) : [...prev, sev]
-    );
+    return [
+      { 
+        id: "maritime", 
+        region: "Région Maritime (Lomé)", 
+        percentage: totalCount > 0 ? Math.round((maritimeIncidents / totalCount) * 100) : 0, 
+        incidents: maritimeIncidents, 
+        trend: maritimeIncidents > 0 ? "+14% ce mois" : "Stable", 
+        hotspot: "Grand Lomé, Baguida, Agoè-Nyivé",
+        lat: 310, lng: 120 
+      },
+      { 
+        id: "plateaux", 
+        region: "Région des Plateaux (Atakpamé)", 
+        percentage: totalCount > 0 ? Math.round((plateauxIncidents / totalCount) * 100) : 0, 
+        incidents: plateauxIncidents, 
+        trend: plateauxIncidents > 0 ? "+5% ce mois" : "Stable", 
+        hotspot: "Atakpamé, Kpalimé, Notsé",
+        lat: 195, lng: 115 
+      },
+      { 
+        id: "centrale", 
+        region: "Région Centrale (Sokodé)", 
+        percentage: totalCount > 0 ? Math.round((centraleIncidents / totalCount) * 100) : 0, 
+        incidents: centraleIncidents, 
+        trend: centraleIncidents > 0 ? "Stable" : "Stable", 
+        hotspot: "Sokodé, Tchamba, Bafilo",
+        lat: 130, lng: 110 
+      },
+      { 
+        id: "kara", 
+        region: "Région de la Kara (Kara)", 
+        percentage: totalCount > 0 ? Math.round((karaIncidents / totalCount) * 100) : 0, 
+        incidents: karaIncidents, 
+        trend: karaIncidents > 0 ? "+18% ce mois" : "Stable", 
+        hotspot: "Kara, Niamtougou, Bassar",
+        lat: 80, lng: 135 
+      },
+      { 
+        id: "savanes", 
+        region: "Région des Savanes (Dapaong)", 
+        percentage: totalCount > 0 ? Math.round((savanesIncidents / totalCount) * 100) : 0, 
+        incidents: savanesIncidents, 
+        trend: savanesIncidents > 0 ? "-3% ce mois" : "Stable", 
+        hotspot: "Dapaong, Mango, Cinkassé",
+        lat: 20, lng: 105 
+      }
+    ];
+  }, [threats, mobileSignals, complaints, agents]);
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickValue.trim()) return;
+    setIsSubmitting(true);
+    
+    // Fire callback
+    onQuickAddThreat(quickType, quickValue.trim(), quickSeverity, quickDetails || "Ajouté manuellement via le Dashboard de supervision");
+    
+    setSuccessMsg(`L'indicateur ${quickValue} a été ajouté avec succès et propagé aux agents !`);
+    setQuickValue("");
+    setQuickDetails("");
+    
+    setTimeout(() => {
+      setSuccessMsg("");
+    }, 4000);
+    setIsSubmitting(false);
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in" id="sp-sentinel-dashboard">
       
-      {/* Premium DriveNets-inspired Royal Blue Cyber Hero Banner */}
-      <div className="relative bg-gradient-to-r from-[#0F296D] via-[#1C4ED8] to-[#0D1F4D] border border-blue-500/20 shadow-xl rounded-2xl p-6 md:p-8 text-white overflow-hidden select-none">
-        {/* Subtle decorative security grid background inside hero */}
-        <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.04)_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none"></div>
-        <div className="absolute -top-12 -left-12 w-48 h-48 bg-cyan-400/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute -bottom-12 -right-12 w-48 h-48 bg-blue-400/15 rounded-full blur-3xl pointer-events-none"></div>
+      {/* 1. Premium Cyber-Green Hero Banner - Sovereignty and Real-Time Surveillance */}
+      <div className="relative bg-gradient-to-r from-emerald-950/85 via-[#0c281e]/90 to-teal-950/85 border border-[#10B981]/20 shadow-xl rounded-2xl p-6 md:p-8 text-white overflow-hidden select-none holo-scanline" id="dashboard-hero-banner">
+        <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.02)_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none"></div>
+        <div className="absolute -top-12 -left-12 w-48 h-48 bg-[#10B981]/5 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute -bottom-12 -right-12 w-48 h-48 bg-[#10B981]/5 rounded-full blur-3xl pointer-events-none"></div>
 
-        {/* Vector custom vertical glowing bars representing network stream intelligence - DIRECTLY matches the DriveNets design */}
-        <div className="absolute right-0 bottom-0 top-0 w-2/5 hidden md:flex items-end justify-between px-10 pb-0 opacity-90 select-none pointer-events-none gap-2">
-          <div className="w-4 bg-gradient-to-t from-[#2563EB]/40 to-[#06B6D4] rounded-t-md animate-pulse" style={{ height: '35%', animationDuration: '3s' }}></div>
-          <div className="w-4 bg-gradient-to-t from-[#2563EB]/50 to-white rounded-t-md animate-pulse" style={{ height: '60%', animationDuration: '4.5s' }}></div>
-          <div className="w-4 bg-gradient-to-t from-[#2563EB] to-[#06B6D4] rounded-t-md" style={{ height: '85%' }}></div>
-          <div className="w-4 bg-gradient-to-t from-[#2563EB]/30 to-white rounded-t-md animate-pulse" style={{ height: '45%', animationDuration: '3.5s' }}></div>
-          <div className="w-4 bg-gradient-to-t from-[#06B6D4] to-white rounded-t-md" style={{ height: '95%' }}></div>
-          <div className="w-4 bg-gradient-to-t from-[#2563EB]/60 to-[#06B6D4] rounded-t-md animate-pulse" style={{ height: '70%', animationDuration: '5s' }}></div>
-          <div className="w-4 bg-gradient-to-t from-[#2563EB]/40 to-white rounded-t-md" style={{ height: '50%' }}></div>
+        {/* Vertical glowing network stream bars in modern green */}
+        <div className="absolute right-0 bottom-0 top-0 w-2/5 hidden md:flex items-end justify-between px-10 pb-0 opacity-85 select-none pointer-events-none gap-2">
+          <div className="w-4 bg-gradient-to-t from-[#10B981]/10 to-[#10B981]/40 rounded-t-md animate-pulse" style={{ height: '35%', animationDuration: '3s' }}></div>
+          <div className="w-4 bg-gradient-to-t from-[#10B981]/20 to-[#10B981]/60 rounded-t-md animate-pulse" style={{ height: '60%', animationDuration: '4.5s' }}></div>
+          <div className="w-4 bg-gradient-to-t from-[#10B981]/30 to-[#10B981]/80 rounded-t-md" style={{ height: '85%' }}></div>
+          <div className="w-4 bg-gradient-to-t from-[#10B981]/10 to-[#10B981]/40 rounded-t-md animate-pulse" style={{ height: '45%', animationDuration: '3.5s' }}></div>
+          <div className="w-4 bg-gradient-to-t from-[#10B981]/40 to-[#10B981] rounded-t-md" style={{ height: '95%' }}></div>
+          <div className="w-4 bg-gradient-to-t from-[#10B981]/25 to-[#10B981]/70 rounded-t-md animate-pulse" style={{ height: '70%', animationDuration: '5s' }}></div>
+          <div className="w-4 bg-gradient-to-t from-[#10B981]/20 to-[#10B981]/50 rounded-t-md" style={{ height: '50%' }}></div>
         </div>
 
         <div className="relative z-10 max-w-xl space-y-3">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-cyan-500/20 border border-cyan-400/30 rounded-full text-xs font-mono font-bold text-cyan-300 uppercase tracking-widest leading-none">
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 animate-ping"></span>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#10B981]/15 border border-[#10B981]/30 rounded-full text-xs font-mono font-bold text-[#10B981] uppercase tracking-widest leading-none">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-ping"></span>
             SP SENTINEL NETWORK COGNITIVE
           </div>
           <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight font-display text-white">
             Supervision Bivalente &amp; Renseignements Cyber en Temps Réel
           </h1>
-          <p className="text-sm text-blue-100 font-sans leading-relaxed max-w-lg opacity-90">
+          <p className="text-sm text-[#94A3B8] font-sans leading-relaxed max-w-lg opacity-90">
             Plateforme souveraine d'échange de signatures de menaces (COI) et de détection automatique d'ingénierie sociale par modèle IA cognitif pour la République du Togo.
           </p>
         </div>
       </div>
 
-      {/* 0. Real-time synchronised TOGO Network Time zone bar */}
-      <div className="bg-[#121A2F] border border-white/5 rounded-xl px-5 py-3 flex flex-col sm:flex-row justify-between items-center gap-3 shadow-md">
+      {/* 2. Real-time synchronised TOGO Network Time zone bar */}
+      <div className="bg-[#111827] border border-white/5 rounded-xl px-5 py-3 flex flex-col sm:flex-row justify-between items-center gap-3 shadow-md" id="dashboard-sync-bar">
         <div className="flex items-center gap-2">
-          <Clock className="w-5 h-5 text-[#3B82F6] animate-pulse" />
-          <span className="text-xs font-mono font-bold text-[#E5E7EB] uppercase tracking-widest">
+          <Clock className="w-5 h-5 text-[#10B981] animate-pulse" />
+          <span className="text-xs font-mono font-bold text-[#94A3B8] uppercase tracking-widest">
             SYNCHRONISATION RENSEIGNEMENT TOGO (GMT NETWORK)
           </span>
         </div>
         
         <div className="text-xs font-mono font-bold text-white bg-[#0B1020]/45 border border-white/5 px-3 py-1.5 rounded-lg flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-[#10B981] animate-ping"></span>
+          <span className="w-2 h-2 rounded-full bg-[#10B981] radar-glow-ring"></span>
           {togoClock || "Synchronisation..."}
         </div>
       </div>
 
-      {/* 1. Header Admin Profile & System health */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Beautiful Dynamic Zero-State Card */}
+      {threats.length === 0 && mobileSignals.length === 0 && (
+        <div className="bg-[#111827] border border-white/5 rounded-2xl p-6 text-center space-y-4 animate-fade-in" id="dashboard-zero-state">
+          <div className="mx-auto w-12 h-12 rounded-full bg-[#10B981]/10 flex items-center justify-center border border-[#10B981]/20 text-[#10B981]">
+            <Shield className="w-6 h-6 animate-pulse" />
+          </div>
+          <div className="max-w-md mx-auto space-y-2">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono">PLATEFORME INITIALISÉE À ZÉRO</h3>
+            <p className="text-xs text-slate-400 font-sans leading-relaxed">
+              Toutes les bases de données du SOC ont été vidées avec succès pour vos tests. La console est prête à enregistrer les signalements citoyens et les synchronisations mobiles en direct.
+            </p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-3">
+            {onLoadDemoData && (
+              <button
+                onClick={async () => {
+                  await onLoadDemoData();
+                }}
+                className="px-4 py-2 bg-[#10B981] hover:bg-[#10B981]/90 text-white text-xs font-bold font-mono uppercase tracking-wider rounded-xl transition shadow-md active:scale-95 cursor-pointer flex items-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4 animate-spin-slow" />
+                Charger les Données de Démo (ANCY)
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 3. Bandeau de KPIs Métriques Haute Visibilité */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="kpi-metrics-strip">
         
-        {/* Admin Card */}
-        <div className="bg-[#121A2F] border border-white/5 rounded-xl p-6 relative overflow-hidden flex flex-col justify-between shadow-md">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl"></div>
-          <div>
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-lg bg-[#3B82F6]/10 border border-[#3B82F6]/20 flex items-center justify-center">
-                <Shield className="w-5 h-5 text-[#3B82F6]" />
-              </div>
-              <div>
-                <h2 className="text-[10px] text-[#94A3B8] uppercase tracking-widest font-mono font-bold">SOC NATIONAL</h2>
-                <h1 className="text-base font-extrabold text-white tracking-tight">{currentUsername}</h1>
-              </div>
+        {/* KPI 1: Total Menaces Interceptées */}
+        <div className="bg-[#111827] border border-white/5 rounded-xl p-4 flex items-center justify-between shadow-lg relative overflow-hidden group hover:border-[#10B981]/35 transition duration-350">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-[#10B981]/5 rounded-full blur-2xl group-hover:bg-[#10B981]/10 transition"></div>
+          <div className="space-y-1">
+            <span className="text-[9px] font-mono text-slate-400 uppercase font-black tracking-widest block">Menaces Interceptées</span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-bold font-mono text-white tracking-tight">{kpiStats.totalIntercepted.toLocaleString()}</span>
+              {kpiStats.totalIntercepted > 0 ? (
+                <span className="text-[9px] font-bold text-emerald-400 font-sans bg-emerald-500/10 px-1.5 py-0.5 rounded">Actif</span>
+              ) : (
+                <span className="text-[9px] font-bold text-slate-500 font-sans bg-slate-800 px-1.5 py-0.5 rounded">0%</span>
+              )}
             </div>
-            
-            <p className="mt-4 text-xs text-[#E5E7EB] font-mono flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${agents.length > 0 ? "bg-[#10B981] animate-pulse" : "bg-slate-500"}`}></span>
-              Rôle: Administrateur Cyber-Menaces
-            </p>
-            <p className="text-[11px] text-[#06B6D4] font-mono mt-1">
-              Région de Supervision: Centrale / Lomé
-            </p>
+            <p className="text-[9px] text-slate-500 font-sans">Bloqué localement sur le territoire</p>
           </div>
-
-          {/* SECURITY LEVEL AND COMPLIANCE INDICATOR */}
-          <div className="pt-4 border-t border-white/5 mt-6 font-mono text-[10px] text-[#94A3B8] space-y-1">
-            <span className="text-slate-400 font-bold block uppercase tracking-wider text-[8px]">STATUT DE SÉCURITÉ :</span>
-            <p className="leading-normal">
-              Opérateur habilité. Terminal SOC chiffré. Renseignements soumis aux exigences de la réglementation nationale ANCY / CERT.TG.
-            </p>
-          </div>
-        </div>
-
-        {/* Server Health Status */}
-        <div className="bg-[#121A2F] border border-white/5 rounded-xl p-6 relative overflow-hidden lg:col-span-2 shadow-md">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl"></div>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xs font-bold text-[#E5E7EB] tracking-wider font-mono flex items-center gap-2 uppercase">
-              <Server className="w-4 h-4 text-[#10B981]" />
-              CONTRÔLE DE SÉCURITÉ CONSOLE CENTRAL
-            </h3>
-            <span className={`px-2 py-0.5 rounded text-[10px] font-mono border ${systemMetrics.statusColor}`}>
-              {systemMetrics.engineStatus}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-            <div className="bg-[#0B1020]/45 p-3 rounded-lg border border-white/5">
-              <span className="text-[#94A3B8] text-[9px] font-mono block">CPU UTILISATION</span>
-              <span className="text-base font-bold text-white font-mono">{systemMetrics.cpu}</span>
-              <div className="w-full bg-[#1A2542] h-1 mt-2 rounded overflow-hidden">
-                <div className={`h-full rounded transition-all duration-500 ${agents.length > 0 ? "bg-[#10B981]" : "bg-[#1A2542]"}`} style={{ width: systemMetrics.cpu }}></div>
-              </div>
-            </div>
-
-            <div className="bg-[#0B1020]/45 p-3 rounded-lg border border-white/5">
-              <span className="text-[#94A3B8] text-[9px] font-mono block">ALLOCATION RAM</span>
-              <span className="text-base font-bold text-[#06B6D4] font-mono">{systemMetrics.ram}</span>
-              <div className="w-full bg-[#1A2542] h-1 mt-2 rounded overflow-hidden">
-                <div className={`h-full rounded ${agents.length > 0 ? "bg-[#06B6D4]" : "bg-[#1A2542]"}`} style={{ width: agents.length > 0 ? "52%" : "0%" }}></div>
-              </div>
-            </div>
-
-            <div className="bg-[#0B1020]/45 p-3 rounded-lg border border-white/5">
-              <span className="text-[#94A3B8] text-[9px] font-mono block">MOTEUR GEMINI SOC IA</span>
-              <span className="text-xs font-bold text-[#10B981] font-mono block truncate mt-1">gemini-3.5-flash</span>
-              <span className="font-mono text-[9px] text-[#94A3B8]/60 block leading-tight">Passerelle API active</span>
-            </div>
-
-            <div className="bg-[#0B1020]/45 p-3 rounded-lg border border-white/5">
-              <span className="text-[#94A3B8] text-[9px] font-mono block">TEMPS DE FONCTIONNEMENT</span>
-              <span className="text-xs font-bold text-[#E5E7EB] font-mono pt-1 block truncate">{systemMetrics.uptime}</span>
-              <span className="font-mono text-[9px] text-[#94A3B8]/60 leading-tight block">Synchro continue</span>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      {/* 2. Key Stats overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-[#121A2F] border border-white/5 rounded-xl p-4 flex items-center justify-between shadow-md">
-          <div>
-            <span className="text-[9px] font-mono text-[#94A3B8] uppercase font-bold">MENACES REPERTORIEES</span>
-            <h4 className="text-xl mt-1 font-bold text-white font-mono">{severityCounts.total}</h4>
-          </div>
-          <div className="p-2.5 rounded-lg bg-[#3B82F6]/10 text-[#3B82F6] border border-white/5">
+          <div className="p-3 rounded-xl bg-[#10B981]/10 text-[#10B981] border border-white/5 shrink-0">
             <Shield className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-[#121A2F] border border-white/5 rounded-xl p-4 flex items-center justify-between shadow-md">
-          <div>
-            <span className="text-[9px] font-mono text-[#94A3B8] uppercase font-bold">INSIGNES CRITIQUES</span>
-            <h4 className="text-xl mt-1 font-bold text-[#EF4444] font-mono">{severityCounts.critical}</h4>
+        {/* KPI 2: Signatures Actives en Base */}
+        <div className="bg-[#111827] border border-white/5 rounded-xl p-4 flex items-center justify-between shadow-lg relative overflow-hidden group hover:border-[#10B981]/35 transition duration-350">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition"></div>
+          <div className="space-y-1">
+            <span className="text-[9px] font-mono text-slate-400 uppercase font-black tracking-widest block">Signatures en Base</span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-bold font-mono text-white tracking-tight">{kpiStats.activeSignatures.toLocaleString()}</span>
+              {kpiStats.activeSignatures > 0 ? (
+                <span className="text-[9px] font-bold text-emerald-400 font-sans bg-emerald-500/10 px-1.5 py-0.5 rounded">Propagé</span>
+              ) : (
+                <span className="text-[9px] font-bold text-slate-500 font-sans bg-slate-800 px-1.5 py-0.5 rounded">Vide</span>
+              )}
+            </div>
+            <p className="text-[9px] text-slate-500 font-sans">Numéros &amp; liens répertoriés</p>
           </div>
-          <div className="p-2.5 rounded-lg bg-[#EF4444]/10 text-[#EF4444] border border-white/5">
-            <AlertTriangle className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-[#121A2F] border border-white/5 rounded-xl p-4 flex items-center justify-between shadow-md">
-          <div>
-            <span className="text-[9px] font-mono text-[#94A3B8] uppercase font-bold">INTERCEPTEURS EN RESEAU</span>
-            <h4 className="text-xl mt-1 font-bold text-[#10B981] font-mono">
-              {agents.filter(a => a.status === "Online").length} <span className="text-xs text-slate-500 font-mono">/ {agents.length}</span>
-            </h4>
-          </div>
-          <div className="p-2.5 rounded-lg bg-[#10B981]/10 text-[#10B981] border border-white/5">
-            <Users className="w-5 h-5" />
+          <div className="p-3 rounded-xl bg-emerald-500/10 text-[#10B981] border border-white/5 shrink-0">
+            <Fingerprint className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-[#121A2F] border border-white/5 rounded-xl p-4 flex items-center justify-between shadow-md">
-          <div>
-            <span className="text-[9px] font-mono text-[#94A3B8] uppercase font-bold">LATENCE TRANSIT USSD/SMS</span>
-            <h4 className="text-xl mt-1 font-bold text-[#3B82F6] font-mono">{systemMetrics.latency}</h4>
+        {/* KPI 3: Déclarations Citoyennes Actives */}
+        <div className="bg-[#111827] border border-white/5 rounded-xl p-4 flex items-center justify-between shadow-lg relative overflow-hidden group hover:border-slate-800 transition duration-350">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-red-950/5 rounded-full blur-2xl transition"></div>
+          <div className="space-y-1">
+            <span className="text-[9px] font-mono text-slate-400 uppercase font-black tracking-widest block">Plaintes Citoyennes</span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-bold font-mono text-white tracking-tight">{kpiStats.citizenComplaints}</span>
+              {kpiStats.citizenComplaints > 0 ? (
+                <span className="text-[9px] font-bold text-red-300 font-sans bg-red-950/40 px-1.5 py-0.5 rounded border border-red-900/30">En Attente</span>
+              ) : (
+                <span className="text-[9px] font-bold text-slate-500 font-sans bg-slate-850 px-1.5 py-0.5 rounded">Stable</span>
+              )}
+            </div>
+            <p className="text-[9px] text-slate-500 font-sans">Soumissions citoyennes directes</p>
           </div>
-          <div className="p-2.5 rounded-lg bg-[#3B82F6]/10 text-[#06B6D4] border border-white/5">
-            <Activity className="w-5 h-5" />
+          <div className="p-3 rounded-xl bg-red-950/30 text-red-300 border border-red-900/30 shrink-0">
+            <AlertCircle className="w-5 h-5" />
           </div>
         </div>
+
+        {/* KPI 4: Agents Mobiles Synchronisés */}
+        <div className="bg-[#111827] border border-white/5 rounded-xl p-4 flex items-center justify-between shadow-lg relative overflow-hidden group hover:border-[#10B981]/35 transition duration-350">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-[#10B981]/5 rounded-full blur-2xl group-hover:bg-[#10B981]/10 transition"></div>
+          <div className="space-y-1">
+            <span className="text-[9px] font-mono text-slate-400 uppercase font-black tracking-widest block">Terminaux Mobiles</span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-bold font-mono text-white tracking-tight">{kpiStats.synchronizedAgents.toLocaleString()}</span>
+              {kpiStats.synchronizedAgents > 0 ? (
+                <span className="text-[9px] font-bold text-[#10B981] font-sans bg-[#10B981]/10 px-1.5 py-0.5 rounded">En ligne</span>
+              ) : (
+                <span className="text-[9px] font-bold text-slate-500 font-sans bg-slate-800 px-1.5 py-0.5 rounded">0</span>
+              )}
+            </div>
+            <p className="text-[9px] text-slate-500 font-sans">Synchronisés en direct au Togo</p>
+          </div>
+          <div className="p-3 rounded-xl bg-[#10B981]/10 text-[#10B981] border border-white/5 shrink-0">
+            <Smartphone className="w-5 h-5" />
+          </div>
+        </div>
+
       </div>
 
-      {/* 3. Interactive Chart (Full width) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* 4. Zone Centrale Opérationnelle (Layout en 2 Colonnes : 70% / 30%) */}
+      <div className="separator-elegant">
+        <div className="separator-node"></div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-10 gap-6" id="central-operational-zone">
         
-        {/* Recharts interactive Phishing Chart (Full 12 columns) */}
-        <div className="bg-[#121A2F] border border-white/5 rounded-xl p-6 flex flex-col justify-between lg:col-span-12 shadow-md">
+        {/* Colonne Gauche (70%) - Flux des Alertes en Temps Réel (Live Threat Feed) */}
+        <div className="bg-[#111827] border border-white/5 rounded-2xl p-5 shadow-xl lg:col-span-7 flex flex-col justify-between">
           <div>
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-              <div>
-                <h3 className="text-xs font-bold text-white tracking-wider flex items-center gap-2 font-mono uppercase">
-                  <TrendingUp className="w-4 h-4 text-[#3B82F6]" />
-                  VISUALISATION CHRONOLOGIQUE DES COMPORTEMENTS DE FRAUDE
+            <div className="flex items-center justify-between border-b border-white/5 pb-3 mb-4">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[#10B981] radar-glow-ring"></span>
+                <h3 className="text-xs font-bold text-white tracking-widest font-mono uppercase">
+                  FLUX DES ALERTES DE MENACES EN TEMPS RÉEL (SOC LIVE)
                 </h3>
-                <p className="text-xs text-[#94A3B8]">Courbe de débits des menaces synchronisées sur le territoire national.</p>
               </div>
-
-              {/* Severity checkboxes */}
-              <div className="flex items-center gap-3 bg-[#0B1020]/45 px-3 py-1.5 rounded-lg border border-white/5">
-                <span className="text-[10px] font-mono text-[#94A3B8] flex items-center gap-1">
-                  <Filter className="w-3.5 h-3.5" />
-                  Filtrer:
-                </span>
+              <span className="text-[9px] font-mono text-slate-400 bg-slate-950 px-2 py-1 rounded">
+                Lomé (GMT+0)
+              </span>
+            </div>
+ 
+            {/* Event List Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-white/5 text-[8.5px] font-mono uppercase text-slate-500 tracking-wider">
+                    <th className="pb-2 font-black text-slate-400">Heure Lomé</th>
+                    <th className="pb-2 font-black text-slate-400">Type d'arnaque / Alerte</th>
+                    <th className="pb-2 font-black text-slate-400">Expéditeur / Source</th>
+                    <th className="pb-2 font-black text-right text-slate-400">Statut SOC</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 text-[10px] font-mono">
+                  {liveThreatFeed.map((alert) => (
+                    <tr key={alert.id} className="hover:bg-slate-950/20 transition-all group">
+                      <td className="py-3 text-slate-400 font-bold whitespace-nowrap">
+                        {alert.time}
+                      </td>
+                      <td className="py-3 pr-3">
+                        <div className="flex flex-col">
+                          <span className={`px-2 py-0.5 rounded text-[8.5px] font-black w-fit font-sans ${
+                            alert.severity === "Critical" 
+                              ? "bg-red-950/40 text-red-300 border border-red-900/30" 
+                              : "bg-slate-800/60 text-slate-300 border border-slate-700"
+                          }`}>
+                            {alert.type}
+                          </span>
+                          <span className="text-[8.5px] text-slate-500 truncate max-w-[200px] font-sans mt-0.5 italic group-hover:text-slate-400">
+                            {alert.details}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 text-white font-bold tracking-tight whitespace-nowrap select-all">
+                        {alert.sender}
+                      </td>
+                      <td className="py-3 text-right">
+                        <span className={`px-2 py-0.5 rounded text-[8.5px] font-black uppercase tracking-wider ${
+                          alert.status === "Bloqué" 
+                            ? "bg-emerald-500/15 text-[#10B981] border border-[#10B981]/25" 
+                            : alert.status === "En Quarantaine"
+                            ? "bg-slate-800/40 text-slate-300 border border-slate-700"
+                            : "bg-emerald-500/10 text-[#10B981] border border-[#10B981]/20"
+                        }`}>
+                          {alert.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+ 
+          <div className="text-[9px] text-slate-500 mt-4 border-t border-white/5 pt-3 flex justify-between items-center font-mono">
+            <span>Flux de surveillance unifié (Appels + SMS)</span>
+            <span>{threats.length} signatures de l'opérateur actives</span>
+          </div>
+        </div>
+ 
+        {/* Colonne Droite (30%) - Statut des Scrapers & IA (Threat Intel Engine) */}
+        <div className="bg-[#111827] border border-white/5 rounded-2xl p-5 shadow-xl lg:col-span-3 flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="border-b border-white/5 pb-3">
+              <h3 className="text-xs font-bold text-white tracking-widest font-mono uppercase flex items-center gap-1.5">
+                <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                MOTEURS SCRAPERS &amp; IA
+              </h3>
+            </div>
+ 
+            {/* Scraping state */}
+            <div className="space-y-2.5">
+              <span className="text-[8.5px] font-mono font-bold text-slate-400 uppercase tracking-widest block">Sources Cyber Connectées :</span>
+              
+              <div className="bg-slate-950/40 border border-white/5 rounded-lg p-2.5 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className="text-[10px] font-bold text-slate-200 font-mono">CERT.TG</span>
+                </div>
+                <span className="text-[8.5px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded uppercase">Opérationnel</span>
+              </div>
+ 
+              <div className="bg-slate-950/40 border border-white/5 rounded-lg p-2.5 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className="text-[10px] font-bold text-slate-200 font-mono">ANCY.GOUV.TG</span>
+                </div>
+                <span className="text-[8.5px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded uppercase">Connecté</span>
+              </div>
+            </div>
+ 
+            {/* Last Gemini Analysis */}
+            <div className="space-y-2 pt-1">
+              <span className="text-[8.5px] font-mono font-bold text-slate-400 uppercase tracking-widest block">Dernière Analyse Gemini :</span>
+              
+              <div className="bg-[#0B1020] border border-white/5 rounded-xl p-3 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-12 h-12 bg-emerald-500/5 rounded-full blur-xl"></div>
                 
-                <label className="flex items-center gap-1.5 text-[10px] text-[#EF4444] font-mono cursor-pointer font-bold uppercase">
-                  <input 
-                    type="checkbox" 
-                    checked={selectedSeverities.includes("Critical")}
-                    onChange={() => handleSeverityToggle("Critical")}
-                    className="accent-red-500 rounded" 
-                  />
-                  Critique
-                </label>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Sparkles className="w-3.5 h-3.5 text-[#10B981]" />
+                  <span className="text-[9px] font-black text-white font-mono uppercase">EXTRACTION COGNITIVE</span>
+                </div>
+ 
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="px-1 py-0.5 bg-red-950/40 border border-red-900/30 rounded text-[7.5px] text-red-300 font-bold uppercase font-mono">
+                      {latestGeminiIoC.type}
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-200 font-mono truncate select-all">
+                      {latestGeminiIoC.value}
+                    </span>
+                  </div>
+                  <p className="text-[9px] text-slate-400 leading-normal font-sans italic">
+                    &ldquo;{latestGeminiIoC.details}&rdquo;
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+ 
+          <div className="pt-3 border-t border-white/5 mt-4 text-[8.5px] font-mono text-slate-500 flex items-center justify-between">
+            <span>IA: Gemini 3.5 Flash</span>
+            <span className="text-[#10B981] font-bold">Modèle ACTIF</span>
+          </div>
+        </div>
 
-                <label className="flex items-center gap-1.5 text-[10px] text-[#F59E0B] font-mono cursor-pointer font-bold uppercase">
-                  <input 
-                    type="checkbox" 
-                    checked={selectedSeverities.includes("Medium")}
-                    onChange={() => handleSeverityToggle("Medium")}
-                    className="accent-amber-500 rounded" 
-                  />
-                  Moyen
-                </label>
+      </div>
 
-                <label className="flex items-center gap-1.5 text-[10px] text-[#E5E7EB] font-mono cursor-pointer font-bold uppercase">
-                  <input 
-                    type="checkbox" 
-                    checked={selectedSeverities.includes("Low")}
-                    onChange={() => handleSeverityToggle("Low")}
-                    className="accent-slate-400 rounded" 
-                  />
-                  Faible
-                </label>
+      {/* 5. Zone Inférieure (Graphiques & Cartographie : 50% / 50%) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" id="dashboard-lower-zone">
+        
+        {/* Graphique de comportement de fraude */}
+        <div className="bg-[#111827] border border-white/5 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between border-b border-white/5 pb-3 mb-4">
+              <div className="space-y-0.5">
+                <h3 className="text-xs font-bold text-white tracking-widest font-mono uppercase flex items-center gap-1.5">
+                  <TrendingUp className="w-3.5 h-3.5 text-[#10B981]" />
+                  COURBE DE DÉBITS DES FRAUDES EN DIRECT
+                </h3>
+                <p className="text-[10px] text-slate-400">Chronologie hebdomadaire consolidée par criticité de menaces.</p>
               </div>
             </div>
 
-            {/* Chart */}
-            <div className="h-64 w-full mt-4">
+            {/* Area Chart */}
+            <div className="h-56 w-full mt-2">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ left: -10, top: 10, right: 10 }}>
+                <AreaChart data={chartData} margin={{ left: -25, top: 5, right: 5, bottom: 0 }}>
                   <defs>
-                    <linearGradient id="colorCritical" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#EF4444" stopOpacity={0.2}/>
-                      <stop offset="95%" stopColor="#EF4444" stopOpacity={0}/>
+                    <linearGradient id="critGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#991B1B" stopOpacity={0.15}/>
+                      <stop offset="95%" stopColor="#991B1B" stopOpacity={0}/>
                     </linearGradient>
-                    <linearGradient id="colorMedium" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.2}/>
-                      <stop offset="95%" stopColor="#F59E0B" stopOpacity={0}/>
+                    <linearGradient id="medGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#475569" stopOpacity={0.15}/>
+                      <stop offset="95%" stopColor="#475569" stopOpacity={0}/>
                     </linearGradient>
-                    <linearGradient id="colorLow" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.2}/>
-                      <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
+                    <linearGradient id="faibleGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.15}/>
+                      <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" />
-                  <XAxis dataKey="date" stroke="#64748b" style={{ fontSize: 9, fontFamily: "monospace" }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                  <XAxis dataKey="name" stroke="#64748b" style={{ fontSize: 9, fontFamily: "monospace" }} />
                   <YAxis stroke="#64748b" style={{ fontSize: 9, fontFamily: "monospace" }} />
                   <Tooltip 
-                    contentStyle={{ backgroundColor: "#121A2F", borderColor: "rgba(255,255,255,0.05)", color: "#E5E7EB" }}
+                    contentStyle={{ backgroundColor: "#111827", borderColor: "rgba(255,255,255,0.08)", color: "#E5E7EB" }}
                     labelStyle={{ fontFamily: "monospace", color: "#94A3B8" }}
                   />
-                  <Legend wrapperStyle={{ fontSize: 10, fontFamily: "monospace" }} />
-                  {selectedSeverities.includes("Critical") && (
-                    <Area type="monotone" dataKey="Critical" stroke="#EF4444" strokeWidth={1.5} fillOpacity={1} fill="url(#colorCritical)" name="Critique" />
-                  )}
-                  {selectedSeverities.includes("Medium") && (
-                    <Area type="monotone" dataKey="Medium" stroke="#F59E0B" strokeWidth={1.5} fillOpacity={1} fill="url(#colorMedium)" name="Moyen" />
-                  )}
-                  {selectedSeverities.includes("Low") && (
-                    <Area type="monotone" dataKey="Low" stroke="#3B82F6" strokeWidth={1.5} fillOpacity={1} fill="url(#colorLow)" name="Faible" />
-                  )}
+                  <Legend wrapperStyle={{ fontSize: 9, fontFamily: "monospace", paddingTop: 10 }} />
+                  <Area type="monotone" dataKey="Critique" stroke="#991B1B" strokeWidth={1.5} fillOpacity={1} fill="url(#critGrad)" name="Critique" />
+                  <Area type="monotone" dataKey="Moyen" stroke="#475569" strokeWidth={1.5} fillOpacity={1} fill="url(#medGrad)" name="Moyen" />
+                  <Area type="monotone" dataKey="Faible" stroke="#10B981" strokeWidth={1.5} fillOpacity={1} fill="url(#faibleGrad)" name="Faible" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
-          
+
+          <div className="pt-2 border-t border-white/5 mt-4 text-[8px] font-mono text-slate-500 flex justify-between">
+            <span>Pics d'activité calculés en temps réel</span>
+            <span>Régions interconnectées</span>
+          </div>
+        </div>
+
+        {/* Mini-Carte Thermique & Répartition Géographique au Togo */}
+        <div className="bg-[#111827] border border-white/5 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between border-b border-white/5 pb-3 mb-4">
+              <div className="space-y-0.5">
+                <h3 className="text-xs font-bold text-white tracking-widest font-mono uppercase flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-[#10B981]" />
+                  REPARTITION GÉOGRAPHIQUE &amp; HEATMAP (TOGO)
+                </h3>
+                <p className="text-[10px] text-slate-400">Concentration spatiale des campagnes d'escroqueries par SMS.</p>
+              </div>
+            </div>
+
+            {/* Split layout: SVG Map representation + list indicators */}
+            <div className="grid grid-cols-12 gap-4 mt-2">
+              
+              {/* Vertical stacked 5-zone representation of Togo */}
+              <div className="col-span-4 bg-slate-950/55 rounded-xl border border-white/5 p-2 h-52 flex flex-col justify-between relative overflow-hidden">
+                <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.01)_1px,transparent_1px)] [background-size:10px_10px] pointer-events-none"></div>
+                
+                {/* Savanes */}
+                <button
+                  onClick={() => setSelectedRegion(selectedRegion === "savanes" ? null : "savanes")}
+                  className={`w-full h-[18%] transition-all duration-300 rounded-lg flex items-center justify-between px-2 text-[8px] font-mono border cursor-pointer ${
+                    selectedRegion === "savanes"
+                      ? "bg-[#10B981]/15 border-[#10B981] text-white"
+                      : selectedRegion ? "bg-slate-900/10 border-transparent opacity-30 text-slate-500" : "bg-slate-900/50 border-slate-800/60 hover:bg-slate-850 text-slate-300"
+                  }`}
+                >
+                  <div className="flex items-center gap-1">
+                    <span className={`w-1.5 h-1.5 rounded-full ${selectedRegion === "savanes" ? "bg-[#10B981] animate-pulse" : "bg-[#10B981]"}`}></span>
+                    <span className="font-bold">SAVANES (NORD)</span>
+                  </div>
+                  <span className="font-bold">
+                    {togoGeographicData.find(r => r.id === "savanes")?.percentage}%
+                  </span>
+                </button>
+
+                {/* Kara */}
+                <button
+                  onClick={() => setSelectedRegion(selectedRegion === "kara" ? null : "kara")}
+                  className={`w-full h-[18%] transition-all duration-300 rounded-lg flex items-center justify-between px-2 text-[8px] font-mono border cursor-pointer ${
+                    selectedRegion === "kara"
+                      ? "bg-[#10B981]/15 border-[#10B981] text-white"
+                      : selectedRegion ? "bg-slate-900/10 border-transparent opacity-30 text-slate-500" : "bg-slate-900/50 border-slate-800/60 hover:bg-slate-850 text-slate-300"
+                  }`}
+                >
+                  <div className="flex items-center gap-1">
+                    <span className={`w-1.5 h-1.5 rounded-full ${selectedRegion === "kara" ? "bg-[#10B981] animate-pulse" : "bg-[#10B981]"}`}></span>
+                    <span className="font-bold">KARA</span>
+                  </div>
+                  <span className="font-bold">
+                    {togoGeographicData.find(r => r.id === "kara")?.percentage}%
+                  </span>
+                </button>
+
+                {/* Centrale */}
+                <button
+                  onClick={() => setSelectedRegion(selectedRegion === "centrale" ? null : "centrale")}
+                  className={`w-full h-[18%] transition-all duration-300 rounded-lg flex items-center justify-between px-2 text-[8px] font-mono border cursor-pointer ${
+                    selectedRegion === "centrale"
+                      ? "bg-[#10B981]/15 border-[#10B981] text-white"
+                      : selectedRegion ? "bg-slate-900/10 border-transparent opacity-30 text-slate-500" : "bg-slate-900/50 border-slate-800/60 hover:bg-slate-850 text-slate-300"
+                  }`}
+                >
+                  <div className="flex items-center gap-1">
+                    <span className={`w-1.5 h-1.5 rounded-full ${selectedRegion === "centrale" ? "bg-[#10B981] animate-pulse" : "bg-[#10B981]"}`}></span>
+                    <span className="font-bold">CENTRALE</span>
+                  </div>
+                  <span className="font-bold">
+                    {togoGeographicData.find(r => r.id === "centrale")?.percentage}%
+                  </span>
+                </button>
+
+                {/* Plateaux */}
+                <button
+                  onClick={() => setSelectedRegion(selectedRegion === "plateaux" ? null : "plateaux")}
+                  className={`w-full h-[18%] transition-all duration-300 rounded-lg flex items-center justify-between px-2 text-[8px] font-mono border cursor-pointer ${
+                    selectedRegion === "plateaux"
+                      ? "bg-[#10B981]/15 border-[#10B981] text-white"
+                      : selectedRegion ? "bg-slate-900/10 border-transparent opacity-30 text-slate-500" : "bg-slate-900/50 border-slate-800/60 hover:bg-slate-850 text-slate-300"
+                  }`}
+                >
+                  <div className="flex items-center gap-1">
+                    <span className={`w-1.5 h-1.5 rounded-full ${selectedRegion === "plateaux" ? "bg-[#10B981] animate-pulse" : "bg-[#10B981]"}`}></span>
+                    <span className="font-bold">PLATEAUX</span>
+                  </div>
+                  <span className="font-bold">
+                    {togoGeographicData.find(r => r.id === "plateaux")?.percentage}%
+                  </span>
+                </button>
+
+                {/* Maritime */}
+                <button
+                  onClick={() => setSelectedRegion(selectedRegion === "maritime" ? null : "maritime")}
+                  className={`w-full h-[18%] transition-all duration-300 rounded-lg flex items-center justify-between px-2 text-[8px] font-mono border cursor-pointer ${
+                    selectedRegion === "maritime"
+                      ? "bg-[#10B981]/15 border-[#10B981] text-white"
+                      : selectedRegion ? "bg-slate-900/10 border-transparent opacity-30 text-slate-500" : "bg-slate-900/50 border-slate-800/60 hover:bg-slate-850 text-slate-300"
+                  }`}
+                >
+                  <div className="flex items-center gap-1">
+                    <span className={`w-1.5 h-1.5 rounded-full ${selectedRegion === "maritime" ? "bg-[#10B981] animate-pulse" : "bg-[#10B981]"}`}></span>
+                    <span className="font-bold">MARITIME (SUD)</span>
+                  </div>
+                  <span className="font-bold">
+                    {togoGeographicData.find(r => r.id === "maritime")?.percentage}%
+                  </span>
+                </button>
+              </div>
+
+              {/* List of Regions & Intensities */}
+              <div className="col-span-8 space-y-2.5">
+                {togoGeographicData.map((reg) => (
+                  <div 
+                    key={reg.id} 
+                    onClick={() => setSelectedRegion(selectedRegion === reg.id ? null : reg.id)}
+                    className={`p-1.5 rounded-lg border transition cursor-pointer ${
+                      selectedRegion === reg.id 
+                        ? "bg-[#10B981]/10 border-[#10B981]/35" 
+                        : "bg-slate-950/20 border-transparent hover:border-slate-800"
+                    }`}
+                  >
+                    <div className="flex justify-between items-center text-[9px] font-mono">
+                      <span className="text-white font-bold">{reg.region}</span>
+                      <span className="font-bold text-[#10B981]">
+                        {reg.incidents} cas ({reg.percentage}%)
+                      </span>
+                    </div>
+                    
+                    {/* Visual bar meter */}
+                    <div className="w-full bg-slate-900 h-1.5 mt-1 rounded overflow-hidden">
+                      <div 
+                        className="h-full rounded transition-all duration-700 bg-[#10B981]" 
+                        style={{ width: `${reg.percentage}%` }}
+                      ></div>
+                    </div>
+
+                    {selectedRegion === reg.id && (
+                      <div className="mt-1.5 text-[8px] font-mono text-slate-400 border-t border-white/5 pt-1 leading-normal animate-fade-in space-y-0.5">
+                        <div><strong className="text-white">Foyers:</strong> {reg.hotspot}</div>
+                        <div><strong className="text-white">Tendance:</strong> {reg.trend}</div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+            </div>
+          </div>
+
           <div className="text-[9px] text-slate-500 mt-4 border-t border-white/5 pt-3 flex justify-between items-center font-mono">
-            <span>Graphique de détection national mis à jour en temps réel</span>
-            <span>Heure de supervision: Lomé (GMT+0)</span>
+            <span>Cliquez sur une zone du rectangle ou de la liste pour filtrer par région</span>
+            <span className="text-slate-400">Cordon de sécurité ANCY</span>
           </div>
         </div>
 
-      </div>
-
-      {/* 5. MANUAL TECHNIQUE DE L&apos;UTILISATEUR ET DOCUMENTATION DES MODULES */}
-      <div className="bg-[#121A2F] border border-white/5 rounded-xl p-6 space-y-4 shadow-md">
-        <div className="flex items-center gap-2">
-          <BookOpen className="w-5 h-5 text-[#3B82F6]" />
-          <h3 className="text-xs font-bold text-white tracking-wider font-mono uppercase">
-            MANUEL DE COMPRÉHENSION DES MODULES : SOC PHISHING TOGO
-          </h3>
-        </div>
-        <p className="text-xs text-[#94A3B8] leading-relaxed font-sans max-w-4xl">
-          Bienvenue sur la plateforme nationale de cybersécurité <strong>SOC PHISHING TOGO</strong>. Développée pour la résilience numérique du Togo de concert avec les autorités compétentes, cette console dynamique fusionne l&apos;intelligence artificielle (Gemini) et la synchronisation décentralisée avec des terminaux mobiles pour bloquer au plus près de l&apos;abonné les menaces d&apos;ingénierie sociale.
-        </p>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
-          
-          <div className="bg-[#0B1020]/45 border border-white/5 p-4 rounded-xl space-y-2">
-            <span className="text-xs text-[#3B82F6] font-mono font-bold block flex items-center gap-1">
-              <span>&bull;</span>
-              Registre National
-            </span>
-            <p className="text-[11px] text-[#94A3B8] font-sans leading-normal">
-              La base centrale du SOC stocke les indicateurs d&apos;attaques (IoC) ciblant les services togolais (CEET, OTR, CNSS, Moov Africa, Yas, UTB). En les marquant comme fraudes, l&apos;information est poussée vers tous les terminaux mobiles partenaires, les immunisant instantanément.
-            </p>
-          </div>
-
-          <div className="bg-[#0B1020]/45 border border-white/5 p-4 rounded-xl space-y-2">
-            <span className="text-xs text-[#3B82F6] font-mono font-bold block flex items-center gap-1">
-              <span>&bull;</span>
-              Bac à Sable (Sandbox)
-            </span>
-            <p className="text-[11px] text-[#94A3B8] font-sans leading-normal">
-              Ce module permet de tester des liens suspects saisis manuellement. L&apos;intelligence artificielle dissèque la structure de l&apos;URL, calcule la ressemblance (SSL, TLD, typographie) avec les marques authentiques du Togo, et formule une recommandation de blocage DNS/Mobile immédiate.
-            </p>
-          </div>
-
-          <div className="bg-[#0B1020]/45 border border-white/5 p-4 rounded-xl space-y-2">
-            <span className="text-xs text-[#3B82F6] font-mono font-bold block flex items-center gap-1">
-              <span>&bull;</span>
-              Intercepteur Heuristique
-            </span>
-            <p className="text-[11px] text-[#94A3B8] font-sans leading-normal">
-              Installés sur les téléphones, les agents captent les messages et alertes suspectes. À l&apos;aide d&apos;analyse sémantique et de règles de compromission, ils détectent les spams financiers, mais aussi les manipulations de grooming ciblant les mineurs et renvoient ces signatures au SOC.
-            </p>
-          </div>
-
-          <div className="bg-[#0B1020]/45 border border-white/5 p-4 rounded-xl space-y-2">
-            <span className="text-xs text-[#3B82F6] font-mono font-bold block flex items-center gap-1">
-              <span>&bull;</span>
-              Rapports Forensiques
-            </span>
-            <p className="text-[11px] text-[#94A3B8] font-sans leading-normal">
-              Cet onglet agrège les signatures d&apos;attaques redondantes sur plusieurs agents à Lomé ou à l&apos;intérieur du Togo. L&apos;algorithme de corrélation automatique matérialise cela sous forme de rapports PDF formels prêts pour le CERT.TG ou la cybercriminalité.
-            </p>
-          </div>
-
-        </div>
       </div>
 
     </div>

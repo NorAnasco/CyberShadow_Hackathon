@@ -86,6 +86,14 @@ public class RetrofitClient {
     }
 
     /**
+     * Lit l'IP brute sans formatage URL.
+     */
+    public static String getServerIp(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        return prefs.getString(KEY_SERVER_IP, "https://sp-sentinel-hq.onrender.com");
+    }
+
+    /**
      * Met à jour l'IP du serveur pour s'adapter à l'adresse de la machine (ex: 192.168.1.15:8000)
      */
     public static void saveServerIp(Context context, String ipAddress) {
